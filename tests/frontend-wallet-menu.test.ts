@@ -1,0 +1,154 @@
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+
+const page = readFileSync("src/frontend/app/page.tsx", "utf8");
+const providers = readFileSync("src/frontend/app/providers.tsx", "utf8");
+const envExample = readFileSync("src/frontend/.env.local.example", "utf8");
+
+describe("frontend wallet menu", () => {
+  it("shows common wallet names without WalletConnect or Project ID copy", () => {
+    expect(page).toContain("MetaMask / OKX Wallet");
+    expect(page).toContain("Use MetaMask / OKX");
+    expect(page).toContain("Phantom / Solana Wallet");
+    expect(page).toContain("Use Phantom / Solana");
+    expect(page).not.toContain("WalletConnect");
+    expect(page).not.toContain("Project ID");
+    expect(envExample).not.toContain("WalletConnect");
+    expect(envExample).not.toContain("Project ID");
+    expect(providers).not.toContain("walletConnect");
+  });
+
+  it("lists mainnet and testnet lanes and protects mainnet execution", () => {
+    for (const chainKey of [
+      "BASE_SEPOLIA",
+      "BASE_MAINNET",
+      "BNB_TESTNET",
+      "BNB_MAINNET",
+      "SOLANA_DEVNET",
+      "SOLANA_MAINNET",
+      "ENDLESS_TESTNET",
+      "ENDLESS_MAINNET",
+    ]) {
+      expect(page).toContain(chainKey);
+    }
+
+    expect(page).toContain("Mainnet real execution is gated; explicit env and user confirmation required.");
+  });
+
+  it("handles Solana selection and Endless bridge absence without runtime overlay errors", () => {
+    expect(page).toContain("useWalletModal");
+    expect(page).toContain("setSolanaWalletModalVisible(true)");
+    expect(providers).toContain("autoConnect={false}");
+    expect(page).toContain("Connecting Endless Web Wallet");
+    expect(page).toContain("Using Endless Web Wallet SDK in this browser");
+    expect(page).toContain("Prepare a 0.000001 SOL transfer proposal to Alice on Solana mainnet");
+    expect(page).toContain("reward ${amount} SOL to Alice on Solana ${chain.networkKind}");
+    expect(page).toContain("connection.getBalance(solanaWallet.publicKey");
+    expect(page).toContain("connection.getFeeForMessage(transaction.compileMessage()");
+    expect(page).toContain("Insufficient Solana ${selectedChain.networkKind} balance");
+    expect(page).toContain("Solana tx payload: endpoint=");
+    expect(page).toContain("SOLANA_FEE_FALLBACK_LAMPORTS");
+    expect(page).toContain("SOLANA_MAINNET_FALLBACK_ENDPOINT");
+    expect(page).toContain("solanaEndpointsForChain");
+    expect(page).toContain("Solana RPC unavailable for ${selectedChain.label}");
+    expect(page).toContain("Solana transaction request failed");
+  });
+
+  it("exposes Base mainnet guard and repeatable on-chain manual tests", () => {
+    expect(page).toContain("LAEL_ENABLE_MAINNET_EXECUTION");
+    expect(page).toContain("Base Mainnet small-value transfer");
+    expect(page).toContain("Base Sepolia acceptance");
+    expect(page).toContain("Endless QR authorization");
+    expect(page).toContain("mainnetRiskAccepted");
+  });
+
+  it("exposes signed Luffa App authorization and task reward controls", () => {
+    expect(page).toContain("luffa-endless-auth");
+    expect(page).toContain("signatureVerified");
+    expect(page).toContain("protocol_mock");
+    expect(page).toContain("webview_bridge");
+    expect(page).toContain("@endlesslab/endless-web3-sdk");
+    expect(page).toContain("EndlessJsSdk");
+    expect(page).toContain("sdk.open()");
+    expect(page).toContain("hideEndlessWebWalletModal");
+    expect(page).toContain('modal.style.removeProperty("display")');
+    expect(page).toContain("modal.classList.add(ENDLESS_MODAL_HIDDEN_CLASS)");
+    expect(page).not.toContain('display: "flex"');
+    expect(page).toContain("AccountAddress.fromBs58String");
+    expect(page).toContain("new TypeTagAddress()");
+    expect(page).toContain("new TypeTagU128()");
+    expect(page).toContain("signAndSubmitTransaction");
+    expect(page).toContain("Endless Web Wallet submitted real tx");
+    expect(page).toContain("endless-web-wallet");
+    expect(page).toContain("Task Reward");
+    expect(page).toContain("businessAction");
+    expect(page).toContain("Endless ${chain.networkKind}");
+    expect(page).toContain("reward 0.001 EDS to Alice with Endless Web Wallet on Endless ${chain.networkKind}");
+    expect(page).toContain('const ALICE_ENDLESS_ADDRESS = "6XtEwYbTZ7PPNnFogtg6crSwXc8S8P53TqWEaSBassxw"');
+    expect(page).toContain("effectiveRecipientAddressForChain(selectedChain, recipientAddress)");
+    expect(page).toContain("Using Alice's fixed Endless address for this real-chain reward validation.");
+    expect(page).toContain("ENDLESS_TX_OPTIONS");
+    expect(page).toContain("ENDLESS_WALLET_RESPONSE_TIMEOUT_MS");
+    expect(page).toContain("Endless Web Wallet transaction confirmation timed out");
+    expect(page).toContain("getAccountEDSAmount");
+    expect(page).toContain("Insufficient Endless ${selectedChain.networkKind} EDS balance");
+    expect(page).toContain("options,");
+    expect(page).toContain("Endless tx payload: sender=");
+    expect(page).toContain("functionArguments: [recipient, amountUnits.toString()]");
+    expect(page).toContain("A real Endless transaction requires a Luffa / Endless recipient address");
+    expect(page).toContain('max: selectedChain.chainType === "endless" ? "0.001" : maxAmount');
+    expect(page).not.toContain("reward 1 EDS to Alice with Luffa App on Endless testnet");
+    expect(page).not.toContain("reward 1 EDS to Alice with Luffa App on Endless ${chain.networkKind}");
+    expect(page).toContain('businessAction: isLogin ? "login"');
+    expect(page).toContain('"Connect Luffa App wallet to LAEL DID"');
+    expect(page).toContain("void bindEndlessWallet(nextChain)");
+    expect(page).toContain("Scan with Luffa App");
+    expect(page).toContain("Endless QR ${endlessQrSession.status}");
+    expect(page).toContain("QR session:");
+    expect(page).toContain("Luffa App Authorization");
+    expect(page).toContain("Sign Endless Web Wallet Tx");
+    expect(page).toContain("(!isEndlessLane && !walletConnected)");
+    const signWalletTransactionBody = page.slice(
+      page.indexOf("async function signWalletTransaction()"),
+      page.indexOf("async function executeProposal()"),
+    );
+    expect(signWalletTransactionBody.indexOf('selectedChain.chainType === "endless"')).toBeLessThan(signWalletTransactionBody.indexOf("const mainnetBlock = getMainnetExecutionBlock"));
+    const executeProposalBody = page.slice(
+      page.indexOf("async function executeProposal()"),
+      page.indexOf("function cancelProposal()"),
+    );
+    expect(executeProposalBody).toContain("Endless Web Wallet tx or signed Luffa App authorization required before recording receipt");
+    expect(executeProposalBody).toContain("await createEndlessQrSession(selectedChain, proposal)");
+    expect(executeProposalBody).toContain("Real Endless execution requires a real txHash from Endless Web Wallet or Luffa App");
+    expect(executeProposalBody).toContain("Real ${selectedChain.label} receipt requires a real wallet txHash before Approve & Record");
+    expect(executeProposalBody).toContain("isMockTxHash(effectiveTxHash)");
+    expect(executeProposalBody).toContain('selectedChain.chainType === "endless" && endlessApproved ? undefined : getMainnetExecutionBlock');
+    expect(executeProposalBody).toContain('appAuthorizationStatus: selectedChain.chainType === "endless" ? "approved"');
+    expect(page).toContain("matchingSession");
+    expect(page).toContain("Endless QR approved; record the receipt evidence next");
+    expect(page).toContain("Open QR");
+    expect(page).toContain("endlessQrSession.scanUrl");
+    expect(page).toContain("Scan URL");
+    expect(page).toContain("LAEL_PUBLIC_CALLBACK_BASE_URL");
+    expect(page).toContain("Public callback");
+    expect(page).toContain("Tunnel rule");
+    expect(page).toContain("DEFAULT_RUNTIME_CONFIG");
+    expect(page).toContain("Restart API and generate a new QR after tunnel URL changes");
+  });
+
+  it("shows feedback submission state to avoid silent duplicate clicks", () => {
+    expect(page).toContain("Feedback submitted");
+    expect(page).toContain("Submitting Feedback");
+    expect(page).toContain("feedbackSubmitting");
+    expect(page).toContain("approved without txHash");
+    expect(page).toContain("human confirmation preserved");
+  });
+
+  it("merges feedback learning status without replacing wallet receipt metadata", () => {
+    expect(page).toContain("setReceipt((current)");
+    expect(page).toContain("...current.receipt");
+    expect(page).toContain("feedback: nextLearning.receipt.feedback");
+    expect(page).toContain("learningStatus: nextLearning.receipt.learningStatus");
+    expect(page).toContain("current.executionId === receipt.executionId");
+  });
+});

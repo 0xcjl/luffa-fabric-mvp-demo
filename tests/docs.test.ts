@@ -1,0 +1,297 @@
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+
+const docs = [
+  {
+    path: "docs/README.md",
+    phrases: [
+      "NEXT_SESSION_HANDOFF.md",
+      "LAEL_DOCS_TIMELINE_v0.3.zh.md",
+      "LAEL_AGT_INTEGRATION_v0.3.zh.md",
+      "LAEL_AGT_NEXT_STEP_EVALUATION_2026-06-02.zh.md",
+      "LAEL_AGT_IMPLEMENTATION_PLAN_2026-06-02.zh.md",
+      "LAEL_AGT_BROWSER_ACCEPTANCE_REPORT_2026-06-02.zh.md",
+      "LAEL_MULTICHAIN_WALLET_SUPPORT_TEST_REPORT_2026-06-02.zh.md",
+      "LAEL_BASE_SEPOLIA_ACCEPTANCE_REPORT_2026-06-04.zh.md",
+      "LAEL_MVP_ACCEPTANCE_MATRIX_2026-06-04.zh.md",
+      "LAEL_WALLET_INTEGRATION_DEMO_SCRIPT_2026-06-04.zh.md",
+      "LAEL_REAL_ENVIRONMENT_TEST_REPORT_2026-06-04.zh.md",
+      "LAEL_INTERNAL_TECHNICAL_ONE_PAGER_2026-06-06.zh.md",
+      "LAEL_P0_P1_P2_NATIVE_APP_REWARD_VERIFICATION_REPORT_2026-06-12.zh.md",
+      "LAEL_ENDLESS_WEB_WALLET_SESSION_REPORT_2026-06-15.zh.md",
+      "LAEL_LUFFA_APP_ENDLESS_MAINNET_TASK_REWARD_REPORT_2026-06-16.zh.md",
+      "LAEL_P0_P2_COMPREHENSIVE_TEST_SUMMARY_2026-06-16.zh.md",
+      "LAEL_FULL_REGRESSION_QA_REPORT_2026-06-16.zh.md",
+      "LAEL_WALLET_STABILITY_FIX_REPORT_2026-06-16.zh.md",
+      "LAEL_PROJECT_ITERATION_HISTORY_2026-06-02.zh.md",
+      "LAEL_COLLABORATION_HANDOFF_2026-06-02.zh.md",
+      "Microsoft AGT 未来阶段落地规划",
+      "LAEL_TEST_REPORT_v0.3_2026-05-28.zh.md",
+      "LAEL_FRONTEND_LOOP_TEST_REPORT_2026-05-29.zh.md",
+      "Project Docs",
+      "后续所有文档变更必须同步到 Project Docs",
+      "Luffa App Public Callback / Cloudflare Tunnel",
+      "LAEL_PUBLIC_CALLBACK_BASE_URL",
+      "Cloudflare 1033/530",
+    ],
+  },
+  {
+    path: "docs/LAEL_DOCS_TIMELINE_v0.3.zh.md",
+    phrases: [
+      "NEXT_SESSION_HANDOFF.md",
+      "LAEL_MVP_NEW_FRAMEWORK_OVERVIEW_2026-05-28.zh.md",
+      "LAEL_FRAMEWORK_DOCS_IMPLEMENTATION_PLAN_2026-05-28.zh.md",
+      "LAEL_FRONTEND_LOOP_IMPROVEMENT_PLAN_2026-05-29.zh.md",
+      "LAEL_AGT_INTEGRATION_v0.3.zh.md",
+      "LAEL_AGT_NEXT_STEP_EVALUATION_2026-06-02.zh.md",
+      "LAEL_AGT_IMPLEMENTATION_PLAN_2026-06-02.zh.md",
+      "LAEL_AGT_BROWSER_ACCEPTANCE_REPORT_2026-06-02.zh.md",
+      "LAEL_MULTICHAIN_WALLET_SUPPORT_TEST_REPORT_2026-06-02.zh.md",
+      "LAEL_BASE_SEPOLIA_ACCEPTANCE_REPORT_2026-06-04.zh.md",
+      "LAEL_MVP_ACCEPTANCE_MATRIX_2026-06-04.zh.md",
+      "LAEL_WALLET_INTEGRATION_DEMO_SCRIPT_2026-06-04.zh.md",
+      "LAEL_REAL_ENVIRONMENT_TEST_REPORT_2026-06-04.zh.md",
+      "LAEL_INTERNAL_TECHNICAL_ONE_PAGER_2026-06-06.zh.md",
+      "LAEL_ENDLESS_WEB_WALLET_SESSION_REPORT_2026-06-15.zh.md",
+      "LAEL_LUFFA_APP_ENDLESS_MAINNET_TASK_REWARD_REPORT_2026-06-16.zh.md",
+      "LAEL_P0_P2_COMPREHENSIVE_TEST_SUMMARY_2026-06-16.zh.md",
+      "LAEL_FULL_REGRESSION_QA_REPORT_2026-06-16.zh.md",
+      "LAEL_WALLET_STABILITY_FIX_REPORT_2026-06-16.zh.md",
+      "LAEL_PROJECT_ITERATION_HISTORY_2026-06-02.zh.md",
+      "LAEL_COLLABORATION_HANDOFF_2026-06-02.zh.md",
+      "下一会话交接入口",
+      "Microsoft AGT 未来阶段落地规划",
+      "当前 MVP 只保留 Adapter PoC、前端展示和 evidence mapping",
+      "LAEL_TEST_REPORT_v0.3_2026-05-28.zh.md",
+      "LAEL_FRONTEND_LOOP_TEST_REPORT_2026-05-29.zh.md",
+      "第二份前端测试报告不替代第一份 v0.3 测试报告",
+      "Base Sepolia / Mainnet Guard / Endless QR",
+      "June 15 MVP 验收矩阵",
+      "Wallet Integration Demo Script",
+      "Real-environment Test Report",
+      "Luffa App public callback / Cloudflare Tunnel 配置要求",
+      "Cloudflare 1033/530",
+      "后续所有文档变更必须同步到 Project Docs",
+    ],
+  },
+  {
+    path: "docs/LAEL_MVP_NEW_FRAMEWORK_OVERVIEW_2026-05-28.zh.md",
+    phrases: ["链下执行，链上可验证，链上价值执行", "Off-chain Agent Execution", "On-chain Value Execution"],
+  },
+  {
+    path: "docs/LAEL_FRAMEWORK_DOCS_IMPLEMENTATION_PLAN_2026-05-28.zh.md",
+    phrases: ["新框架文档与实施计划", "LAEL_REQUIREMENTS_v0.3.zh.md", "LAEL_TEST_PLAN_v0.3.en.md"],
+  },
+  {
+    path: "docs/LAEL_REQUIREMENTS_v0.3.zh.md",
+    phrases: ["Verifiable Adaptive Resource Runtime", "链下执行", "链上价值执行", "Microsoft AGT Adapter"],
+  },
+  {
+    path: "docs/LAEL_REQUIREMENTS_v0.3.en.md",
+    phrases: ["Verifiable Adaptive Resource Runtime", "Off-chain Agent Execution", "On-chain Value Execution", "Microsoft AGT Adapter"],
+  },
+  {
+    path: "docs/LAEL_MVP_v0.3.zh.md",
+    phrases: ["Unified Agent Runtime Fabric MVP", "OpenClaw/Codex Stub", "Base Sepolia ETH/USDC", "Governance source", "多链钱包支持"],
+  },
+  {
+    path: "docs/LAEL_MVP_v0.3.en.md",
+    phrases: ["Unified Agent Runtime Fabric MVP", "OpenClaw/Codex Stub", "Base Sepolia ETH/USDC", "Governance source", "Multi-chain Wallet Support"],
+  },
+  {
+    path: "docs/LAEL_TEST_PLAN_v0.3.zh.md",
+    phrases: ["Off-chain Runtime", "On-chain Transfer", "Fiat / Proof Settlement", "Governance / AGT Adapter", "多链钱包支持测试补充", "Cloudflare 1033/530", "callbackLocalOnly=false"],
+  },
+  {
+    path: "docs/LAEL_TEST_PLAN_v0.3.en.md",
+    phrases: ["Off-chain Runtime", "On-chain Transfer", "Fiat / Proof Settlement", "Governance / AGT Adapter", "Multi-chain Wallet Support Test Addendum"],
+  },
+  {
+    path: "docs/LAEL_TEST_REPORT_v0.3_2026-05-28.zh.md",
+    phrases: ["最终测试结果摘要", "10 个测试文件通过", "31 个测试通过"],
+  },
+  {
+    path: "docs/LAEL_FRONTEND_LOOP_IMPROVEMENT_PLAN_2026-05-29.zh.md",
+    phrases: ["前端闭环与测试面板改进计划", "Run Full Automated Checks", "LAEL_FRONTEND_LOOP_TEST_REPORT_2026-05-29.zh.md"],
+  },
+  {
+    path: "docs/LAEL_FRONTEND_LOOP_TEST_REPORT_2026-05-29.zh.md",
+    phrases: ["前端闭环与测试面板改进测试报告", "QA Runner", "LAEL_TEST_REPORT_v0.3_2026-05-28.zh.md"],
+  },
+  {
+    path: "docs/LAEL_AGT_INTEGRATION_v0.3.zh.md",
+    phrases: ["Microsoft AGT", "Governance Extension", "MicrosoftAgtAdapter", "AGT 不替代 Luffa DID"],
+  },
+  {
+    path: "docs/LAEL_AGT_NEXT_STEP_EVALUATION_2026-06-02.zh.md",
+    phrases: ["AGT Policy Engine Sidecar Spike", "MCP Security Gateway", "暂不 fork"],
+  },
+  {
+    path: "docs/LAEL_AGT_IMPLEMENTATION_PLAN_2026-06-02.zh.md",
+    phrases: ["未来阶段落地规划", "当前 MVP 决策", "当前 MVP 阶段不要求落地", "AGT sidecar client", "MCP governance wrapper"],
+  },
+  {
+    path: "docs/LAEL_AGT_BROWSER_ACCEPTANCE_REPORT_2026-06-02.zh.md",
+    phrases: ["浏览器人工验收通过", "Microsoft AGT Adapter", "03-runtime-receipt-agt.png"],
+  },
+  {
+    path: "docs/LAEL_MULTICHAIN_WALLET_SUPPORT_TEST_REPORT_2026-06-02.zh.md",
+    phrases: ["Multi-chain Wallet Support Test Report", "BNB Mainnet", "Solana Devnet / Mainnet", "Endless Testnet / Mainnet", "Luffa App QR"],
+  },
+  {
+    path: "docs/LAEL_BASE_SEPOLIA_ACCEPTANCE_REPORT_2026-06-04.zh.md",
+    phrases: ["Base Sepolia", "LAEL_ENABLE_MAINNET_EXECUTION", "mainnetRiskAccepted", "Endless QR", "Mock App Callback"],
+  },
+  {
+    path: "docs/LAEL_MVP_ACCEPTANCE_MATRIX_2026-06-04.zh.md",
+    phrases: ["2026-06-15", "Full MVP testing", "Wallet integration demo", "Real-environment test report", "Internal technical one-pager", "Base Sepolia 真实钱包"],
+  },
+  {
+    path: "docs/LAEL_WALLET_INTEGRATION_DEMO_SCRIPT_2026-06-04.zh.md",
+    phrases: ["Wallet Integration Demo Script", "3-5 分钟", "0x1074ef6406df38baa790ee545d4288087938613a4b422cdef6e76b834806246b", "Base Mainnet", "Endless QR", "Feedback Submitted"],
+  },
+  {
+    path: "docs/LAEL_REAL_ENVIRONMENT_TEST_REPORT_2026-06-04.zh.md",
+    phrases: [
+      "Real-environment Test Report",
+      "0x1074ef6406df38baa790ee545d4288087938613a4b422cdef6e76b834806246b",
+      "exec_90e5bf32-3b1d-4de9-8871-c2cdc97011da",
+      "Settlement completed",
+      "base-sepolia-receipt-completed-2026-06-06.png",
+      "keep_human_confirmation",
+      "截图证据",
+    ],
+  },
+  {
+    path: "docs/LAEL_INTERNAL_TECHNICAL_ONE_PAGER_2026-06-06.zh.md",
+    phrases: [
+      "Internal Technical One-pager",
+      "Unified Agent Runtime Fabric",
+      "Identity -> Permission -> Execution -> Settlement -> Evidence -> Feedback -> Learning",
+      "Base Sepolia real transfer",
+      "Base Mainnet guard",
+      "Endless QR protocol",
+      "Learning 不自动提高额度",
+    ],
+  },
+  {
+    path: "docs/LAEL_P0_P1_P2_NATIVE_APP_REWARD_VERIFICATION_REPORT_2026-06-12.zh.md",
+    phrases: [
+      "luffa-endless-auth:v1",
+      "publicKey",
+      "fullMessage",
+      "signature",
+      "protocol_mock",
+      "BNB Testnet",
+      "Solana Devnet",
+      "Task Reward",
+      "businessAction=task_reward",
+      "LAEL_PUBLIC_CALLBACK_BASE_URL",
+      "Cloudflare 1033/530",
+    ],
+  },
+  {
+    path: "docs/LAEL_ENDLESS_WEB_WALLET_SESSION_REPORT_2026-06-15.zh.md",
+    phrases: [
+      "Endless Web Wallet",
+      "Task Reward",
+      "0.001 EDS",
+      "wallet binding",
+      "publicKey",
+      "Confirm",
+      "txHash",
+      "Cloudflare 530",
+      "真实链上完成",
+    ],
+  },
+  {
+    path: "docs/LAEL_LUFFA_APP_ENDLESS_MAINNET_TASK_REWARD_REPORT_2026-06-16.zh.md",
+    phrases: [
+      "Luffa App QR / WebView bridge",
+      "packageTransactionV2",
+      "signAndSubmitTransaction",
+      "D48oBNUHyigrBzpgWRvqyRyGpGNDXnsjKpht9hN9GGNL",
+      "status=SUCCESS",
+      "proposal_bc49fc78-cf38-420d-8b84-9978a4331ede",
+      "feedback",
+      "Learning",
+    ],
+  },
+  {
+    path: "docs/LAEL_P0_P2_COMPREHENSIVE_TEST_SUMMARY_2026-06-16.zh.md",
+    phrases: [
+      "P0、P1、P2 的关键闭环已经完成",
+      "D48oBNUHyigrBzpgWRvqyRyGpGNDXnsjKpht9hN9GGNL",
+      "G1eVEi3JxrmPuoEjdXc1hLNuwqB9TscAVQzxo6vG5iid",
+      "0x0985baaf632a8f8a6c9b474c78dfc71935029d6e6007ddf27e2f7b207acb9736",
+      "4YLEVpKSGd3wCLApqgPsVHx9nCjbG6Cavcb1cqmj23JyXHZi84CwLKFGShpQR84p8BiviwJFFNU5GRx2UyHhqK16",
+      "proposal_bc49fc78-cf38-420d-8b84-9978a4331ede",
+      "BNB Testnet 和 Solana Devnet",
+      "非关键阻塞项",
+    ],
+  },
+  {
+    path: "docs/LAEL_FULL_REGRESSION_QA_REPORT_2026-06-16.zh.md",
+    phrases: [
+      "全量回归与前端稳定性测试报告",
+      "CSS 404 / 页面裸样式",
+      ".next-live",
+      ".next-build",
+      "frontend-page-smoke",
+      "qa_mqg0m76y",
+      "Root vitest",
+      "Frontend page smoke test",
+      "ok=true",
+    ],
+  },
+  {
+    path: "docs/LAEL_WALLET_STABILITY_FIX_REPORT_2026-06-16.zh.md",
+    phrases: [
+      "LAEL Wallet Stability Fix Report",
+      "Endless Web Wallet",
+      "30000ms",
+      "0.000001 SOL",
+      "getBalance",
+      "getFeeForMessage",
+      "Solana RPC unavailable",
+      "Runtime Error overlay",
+      "Cloudflare `1033 / 530`",
+      "198.18.0.83",
+      "TLS handshake with edge error: EOF",
+    ],
+  },
+  {
+    path: "docs/LAEL_PROJECT_ITERATION_HISTORY_2026-06-02.zh.md",
+    phrases: ["项目迭代过程记录", "v0.1 / v0.2", "统一 Runtime Fabric", "Microsoft AGT 融合", "多链钱包支持", "链上验收强化", "June 15 交付轨道", "Wallet Demo 脚本", "真实环境测试报告", "内部技术一页纸", "NEXT_SESSION_HANDOFF.md", "Cloudflare quick tunnel", "/v2/runtime-config"],
+  },
+  {
+    path: "docs/LAEL_COLLABORATION_HANDOFF_2026-06-02.zh.md",
+    phrases: ["协作开发交接说明", "codex/varr-api-route-fixes", "验证命令", "钱包和网络边界", "协作规则"],
+  },
+  {
+    path: "NEXT_SESSION_HANDOFF.md",
+    phrases: [
+      "NEXT SESSION HANDOFF",
+      "https://github.com/0xcjl/luffa-fabric-test",
+      "codex/varr-api-route-fixes",
+      "docs/README.md",
+      "docs/LAEL_DOCS_TIMELINE_v0.3.zh.md",
+      "docs/LAEL_PROJECT_ITERATION_HISTORY_2026-06-02.zh.md",
+      "docs/LAEL_WALLET_STABILITY_FIX_REPORT_2026-06-16.zh.md",
+      "./node_modules/.bin/tsc -p tsconfig.json --noEmit",
+      "LAEL_PUBLIC_CALLBACK_BASE_URL",
+      "Cloudflare 1033/530",
+      "后续每次重要迭代提交前，必须更新本文件",
+    ],
+  },
+];
+
+describe("LAEL v0.3 documentation", () => {
+  it.each(docs)("keeps $path as a complete备案 document", ({ path, phrases }) => {
+    const content = readFileSync(path, "utf8");
+
+    for (const phrase of phrases) {
+      expect(content).toContain(phrase);
+    }
+  });
+});

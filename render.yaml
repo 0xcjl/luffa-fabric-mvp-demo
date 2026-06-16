@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: luffa-fabric-mvp-api
+    runtime: node
+    plan: starter
+    buildCommand: npm ci && npm run build
+    startCommand: node dist/index.js
+    healthCheckPath: /v2/runtime-config
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LAEL_HOST
+        value: 0.0.0.0
+      - key: ENABLE_LAEL_QA_RUNNER
+        value: "false"
+      - key: LAEL_ENABLE_MAINNET_EXECUTION
+        value: "false"
+      - key: LAEL_MAINNET_MAX_AMOUNT_ETH
+        value: "0.001"
+      - key: LAEL_PUBLIC_CALLBACK_BASE_URL
+        sync: false
+      - key: LAEL_FRONTEND_URL
+        sync: false

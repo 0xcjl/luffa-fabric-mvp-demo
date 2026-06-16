@@ -1,0 +1,13 @@
+node_modules/
+.pnpm-store/
+dist/
+src/frontend/.next/
+src/frontend/.next-dev/
+src/frontend/.next-build/
+src/frontend/.next-live/
+coverage/
+*.db
+*.db-shm
+*.db-wal
+.DS_Store
+.env

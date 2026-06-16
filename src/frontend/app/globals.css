@@ -1,0 +1,37 @@
+@import "@solana/wallet-adapter-react-ui/styles.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: #eef4f2;
+  color: #172026;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.panel {
+  border: 1px solid rgba(216, 225, 230, 0.95);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+html body #endless_dapp_modal_container {
+  left: 16px !important;
+  right: auto !important;
+  top: 16px !important;
+  width: min(360px, calc(100vw - 32px)) !important;
+  max-height: calc(100vh - 32px) !important;
+  transform: none !important;
+}

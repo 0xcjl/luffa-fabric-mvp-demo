@@ -1,0 +1,331 @@
+export type ProjectDocSection = {
+  title: string;
+  summary: string;
+  items: string[];
+};
+
+export type ProjectDocIndexItem = {
+  type: string;
+  file: string;
+  note: string;
+};
+
+export const projectDocsMaintenanceRule = "后续所有文档变更必须同步到 Project Docs";
+
+export const projectDocsStatus = [
+  { label: "Current Version", value: "LAEL / Luffa Fabric MVP v0.3" },
+  { label: "Runtime Model", value: "Unified Agent Runtime Fabric" },
+  { label: "Current Demo", value: "Off-chain Runtime + Multi-chain Value + Endless Web Wallet + Luffa App Authorization + Task Reward" },
+  { label: "Delivery Deadline", value: "2026-06-15" },
+  { label: "Last Updated", value: "2026-06-16" },
+  { label: "Documentation Rule", value: projectDocsMaintenanceRule },
+] as const;
+
+export const projectDocsSections: ProjectDocSection[] = [
+  {
+    title: "项目介绍",
+    summary: "LAEL / Luffa Fabric 是面向 Agentic Economy 的可信执行基础设施。",
+    items: [
+      "LAEL / Luffa Fabric 的核心定位是 Verifiable Adaptive Resource Runtime。",
+      "它不是 chatbot、workflow builder、MCP wrapper、agent marketplace。",
+      "它关注谁在执行、是否有权执行、执行是否可控、结果是否可验证、价值如何计量结算、责任如何追溯、系统如何学习。",
+      "它既服务 Luffa 内部 Agentic Runtime，也允许外部 AI Agent、社区、应用和服务接入。",
+    ],
+  },
+  {
+    title: "设计思路",
+    summary: "系统按积木式架构组织，每个能力都可以作为治理闭环中的组件接入。",
+    items: [
+      "统一闭环是 Identity -> Permission -> Execution -> Settlement -> Evidence -> Feedback -> Learning。",
+      "所有 Agent、Skill、Policy、Context、Settlement 和 Evidence 都应能被组合和追踪。",
+      "Off-chain Agent Runtime 负责 OpenClaw、Codex、Claude Code、API Agent 等链下执行。",
+      "On-chain Value Runtime 负责 transfer、swap proposal、settlement、payment、claim、reward 等链上价值动作。",
+      "当前多链支持同时展示测试网和主网：Base、BNB、Solana、Endless Web Wallet / Luffa App；主网真实执行需要 env gate、页面二次确认和金额上限。",
+      "当前 P0 主线是 Luffa App QR / WebView 授权协议，Endless Testnet 只有真实 App 签名 callback 验证通过后才算原生能力闭环。",
+      "当前 P2 业务场景是 Task Reward：Agent 帮用户完成一个小额任务 / reward，并生成 receipt、feedback 和 learning signal。",
+      "当前阶段交付目标需要在 2026-06-15 前完成：Full MVP testing、Wallet integration demo、Real-environment test report、Internal technical one-pager、可选 3-5 分钟 demo video。",
+      "两条路径都必须回到 Mapping DID / Luffa DID 作为统一锚点。",
+      "公网 Demo 版采用独立 GitHub 仓库、Vercel 前端和 Render API；public callback 使用 Render API URL，不依赖本机 Cloudflare tunnel。",
+    ],
+  },
+  {
+    title: "系统架构",
+    summary: "当前 MVP 采用统一 Runtime Fabric，加上可插拔 Extension。",
+    items: [
+      "Identity Extension：维护 Mapping DID / Luffa DID、Agent ID、External Agent ID、Wallet Address 的绑定关系。",
+      "Permission / Governance Extension：执行 Luffa Native Policy、Microsoft AGT Adapter、Wallet Permission Guard、MCP Tool Permission Guard。",
+      "Execution Extension：承载 Off-chain Runtime Adapter、AGT runtime guard、On-chain Value Executor。",
+      "Settlement Extension：记录 crypto settlement、fiat proof、invoice proof、resource credit、API cost、on/off-ramp intent。",
+      "Evidence Extension：生成 Luffa Execution Receipt、Trace Digest、AGT Decision Record 映射和可选链上 attestation。",
+      "Learning / Reputation Layer：沉淀反馈、偏好、策略建议、训练样本和 Agent score。",
+      "Microsoft AGT 是 Permission / Governance Extension 的可选治理积木，不是 Luffa Fabric 的核心协议替代品。",
+    ],
+  },
+  {
+    title: "运行流程",
+    summary: "不同 lane 的执行细节不同，但都必须产出 permission、evidence、learning。",
+    items: [
+      "Off-chain Agent summary：Mapping DID -> Agent Binding -> Context Boundary -> Permission / AGT Guard -> Runtime Adapter -> Trace Digest -> Receipt -> Learning。",
+      "On-chain transfer：Mapping DID -> Wallet Binding -> Transfer Intent -> Permission Decision -> Human Confirmation -> Wallet Signature -> txHash -> Settlement Record -> Receipt -> Feedback -> Learning。",
+      "BNB transfer：走 EVM wallet lane，可通过 MetaMask / OKX Wallet 添加 BNB Testnet 并返回 txHash。",
+      "Solana transfer：走 Phantom / Solana Wallet，使用 public key 绑定 DID，并把 devnet signature 写入 receipt。",
+      "Solana Mainnet transfer：默认主网小额 proposal 固定为 0.000001 SOL；签名前执行余额 + fee 预检，RPC endpoint 失败时 fallback 并写入页面日志，避免 Runtime Error overlay。",
+      "Endless transfer：浏览器真实 txHash 可以走官方 Endless Web Wallet SDK；Luffa App QR / WebView 已完成 luffa-endless-auth:v1 原生授权和 App bridge 主网 task_reward 真实 txHash 验收。",
+      "Endless Web Wallet 稳定性：connect / transaction 请求带 30 秒 timeout，SDK modal 授权完成后应能正常关闭。",
+      "Luffa App QR / WebView transfer：真实 App callback 必须带 publicKey、fullMessage、signature 并通过验签；App bridge 交易路径应使用 packageTransactionV2(payload JSON string) -> rawData -> signAndSubmitTransaction(rawData) -> hash。",
+      "2026-06-16 Luffa App bridge 修复后，Endless Mainnet Task Reward 0.001 EDS 返回真实 txHash D48oBNUHyigrBzpgWRvqyRyGpGNDXnsjKpht9hN9GGNL，并完成 receipt、feedback 和 learning。",
+      "Endless / Luffa App 登录绑定只签 businessAction=login session，不包含 transfer intent、amount 或 recipient；转账和 Task Reward 才签包含 EDS、recipient、amount 的业务授权。",
+      "真实 Luffa App QR / WebView 联调必须配置 LAEL_PUBLIC_CALLBACK_BASE_URL 为公网可访问 HTTPS tunnel；当前优先使用 named Cloudflare Tunnel: https://lael.clawworld.eu.cc。",
+      "真实 Luffa App 扫码前必须运行 npm run health:luffa-app，确认本地 API、前端、public callback、连续公网探测和临时 scan 页面全部通过。",
+      "2026-06-15 复测中，API、frontend、public callback 和 health check 均 ready，但手机 App 对 JSON QR、兼容 JSON QR、key=value 最小 login QR 都提示无效二维码；session debug events 为空，说明阻塞在 App 本地 QR parser/schema。",
+      "历史 App bridge payload 兼容问题已经在 2026-06-16 通过 Luffa 文档匹配的两步 bridge 流程修复；后续若再次出现 rawData 为空或 1006/1009，仍按 payload/schema 回归处理。",
+      "Task Reward：用户触发任务奖励 intent，Agent 生成 reward proposal，经钱包、Endless Web Wallet 或 Luffa App 授权后写入 settlement receipt，再提交 feedback 和 learning。",
+      "Simulated swap：Intent -> Permission Decision -> Human Confirmation -> Simulated Swap Receipt，不接真实 DEX。",
+      "Fiat / invoice proof：Proof Input -> Settlement Proof Record -> Evidence Classification -> Receipt，不触发真实法币支付。",
+      "AGT governance decision：Tool Call / Intent -> Luffa Native Policy -> Optional AGT Adapter / Sidecar -> Decision Record -> Luffa Receipt Metadata。",
+    ],
+  },
+  {
+    title: "模块说明",
+    summary: "前端每个区域对应一个 MVP 验收能力。",
+    items: [
+      "Runtime Agent：演示链下 Agent summary/report，生成 off-chain receipt、trace digest、learning signal 和 AGT decision record。",
+      "On-chain Value Agent：演示 Base Sepolia ETH/USDC transfer、wallet confirmation、txHash receipt、Base Mainnet safety gate、Endless Web Wallet、Endless QR/WebView authorization、Task Reward 和 simulated swap proposal。",
+      "Wallet Menu：在右上角弹窗集中展示 Base、BNB、Solana、Endless Web Wallet / Luffa App 的主网/测试网连接方式和支持边界。",
+      "Evidence / Learning：集中展示 settlement proof、evidence sensitivity、disclosure suggestion、learning item 和 policy suggestion。",
+      "Automated Tests：通过本地 QA Runner 启动白名单自动化检查，不接受任意命令。",
+      "Manual Tests：按顺序提供人工验收步骤，并显示 pass、waiting、fail、blocked、simulated 等状态。",
+      "QA Runner：仅本机开发验收使用；日常本地 API 用 ENABLE_LAEL_QA_RUNNER=true 或 npm run start:local 启动，让 Run Full Automated Checks 保持可用；root tests 会隔离到 mock 测试环境。",
+      "AGT Adapter / AGT Sidecar / MCP Governance Wrapper：用于治理链下 tool call、MCP action、policy decision 和 decision record 映射。",
+    ],
+  },
+  {
+    title: "操作步骤",
+    summary: "按页面从上到下执行即可完成主要验收路径。",
+    items: [
+      "运行 Runtime Agent：进入 Runtime Agent，点击 Run Summary，查看 Runtime Receipt、AGT Decision、Trace Digest 和 Learning。",
+      "生成 transfer proposal：进入 On-chain Value Agent，选择 ETH 或 USDC，填写转账请求，点击 Generate Transfer Proposal。",
+      "生成 Task Reward：进入 On-chain Value Agent，点击 Task Reward，确认 businessAction=task_reward，再按所选链完成钱包、Endless Web Wallet 或 App 授权、receipt、feedback 和 learning。",
+      "执行 Base Sepolia acceptance：确认 Base Sepolia、绑定钱包、签名交易，再点击 Approve & Record 记录 txHash、explorer link、receipt 和 learning。",
+      "执行 Base Mainnet small-value transfer：必须先设置 LAEL_ENABLE_MAINNET_EXECUTION=true，再勾选 mainnetRiskAccepted，并保持金额不超过 LAEL_MAINNET_MAX_AMOUNT_ETH。",
+      "执行 BNB transfer：点击右上角 Connect Wallet，选择 BNB Testnet，必要时点击 Add BNB Testnet to OKX，绑定 EVM 钱包，签名后记录 txHash。",
+      "执行 BNB Mainnet small-value transfer：必须由用户明确确认真实主网金额和钱包；2026-06-15 已完成 0.000001 BNB 自转，txHash 0x0985baaf632a8f8a6c9b474c78dfc71935029d6e6007ddf27e2f7b207acb9736，public BSC RPC receipt status=0x1，LAEL receipt exec_3a85ba42-f526-4c40-a628-53b52e9460fc。2026-06-16 用户确认主网测试通过即可。",
+      "执行 Solana transfer：点击右上角 Connect Wallet，选择 Solana Devnet，打开 Phantom / Solana Wallet，绑定 public key，签名后记录 signature。",
+      "执行 Solana Mainnet small-value transfer：必须由用户明确确认真实主网金额和钱包；2026-06-15 已完成 0.000001 SOL 自转，signature 4YLEVpKSGd3wCLApqgPsVHx9nCjbG6Cavcb1cqmj23JyXHZi84CwLKFGShpQR84p8BiviwJFFNU5GRx2UyHhqK16，public Solana RPC finalized，slot 426702421，LAEL receipt exec_19f2155b-521b-48b6-8816-6b834494835c。",
+      "执行 Endless Web Wallet 转账 / Reward：选择 Endless Testnet 或 Endless Mainnet，右上角 Wallet / Network 点击 Use Endless Web Wallet，生成 proposal 后点击 Sign Endless Web Wallet Tx；Task Reward 默认收款人为 Alice 的固定 Endless 地址，交易 payload 带显式 gas/expire options，签名前会检查 sender EDS 余额，拿到真实 txHash 后再 Approve & Record。2026-06-15 主网小额测试中，活动 sender EYWRWEnLGxgpYVVQd2Tq74iMtHUYSas4qKG3SzrpkZr2 充值后余额为 10 EDS，并完成 txHash G1eVEi3JxrmPuoEjdXc1hLNuwqB9TscAVQzxo6vG5iid、receipt、feedback、learning。",
+      "执行 Luffa App Task Reward：生成 Endless Mainnet task_reward QR，手机扫码后点击 Sign With Luffa App；WebView bridge 先 packageTransactionV2 得到 rawData，再 signAndSubmitTransaction 返回 hash。2026-06-16 已完成 txHash D48oBNUHyigrBzpgWRvqyRyGpGNDXnsjKpht9hN9GGNL、链上 SUCCESS、LAEL receipt、feedback 和 learning。",
+      "执行 Endless QR / WebView authorization：创建 luffa-endless-auth:v1 session；真实 App callback 必须显示 signature verified，本地 Mock App Callback 只用于 protocol_mock 验收。",
+      "连接 Luffa App 钱包：Luffa App QR login 只用于绑定钱包和 DID，不请求转账授权。",
+      "执行 Luffa App 业务授权：在 proposal 或 Task Reward 已生成后再创建业务授权 QR，此时签名内容才包含 amount、asset=EDS、recipientAddress 和 businessAction。",
+      "配置公网 callback：启动 Cloudflare named tunnel 指向本地 API 3000，/Users/xyz/.cloudflared/lael-luffa-app-dev.yml 固定 protocol: http2，API 使用 LAEL_PUBLIC_CALLBACK_BASE_URL=https://lael.clawworld.eu.cc；如果手机出现 Cloudflare 1033/530，需要重启 tunnel/API 并生成新 QR，旧 QR 作废。",
+      "当前 public callback caveat：若本机 TUN / DNS 把 Cloudflare tunnel edge 解析到 198.18.*，cloudflared 可能 TLS handshake EOF，导致 lael.clawworld.eu.cc 返回 1033 / 530；此时只能继续本地钱包测试，不要扫码验收。",
+      "重复弹授权页排查：signed callback 成功后，同一 /scan session 应显示已提交状态；若仍重复弹窗，先确认是否扫描了旧 QR、App WebView 是否在刷新旧 scan URL、以及 npm run health:luffa-app 是否通过。",
+      "扫码前健康检查：运行 npm run health:luffa-app；只有 ok=true 且 endless.scan-page.public 通过时，才使用 Luffa App 扫新二维码。",
+      "执行 simulated swap：输入 swap 请求，点击 Generate Swap，再点击 Simulate Receipt，确认没有真实 DEX 交易。",
+      "创建 invoice proof：进入 Evidence / Learning，填写 proof reference，点击 Create Proof Record。",
+      "查看 evidence / learning：在页面下方 Evidence 和 Learning 面板查看上链状态、敏感等级、披露建议、学习内容和优先级。",
+      "运行自动化测试：在 Automated Tests 点击 Run Full Automated Checks，查看每项状态、耗时和摘要。",
+      "日常启动全自动检查：API 用 npm run start:local 或显式设置 ENABLE_LAEL_QA_RUNNER=true；Cloudflare / 代理转发请求仍会被 API 拒绝，不能从公网触发本机 QA Runner。",
+      "保持前端开发服务稳定：npm run dev 使用 .next-live，npm run build 使用 .next-build；全自动检查的 frontend build 不应覆盖 live dev server 输出。",
+      "部署公网 demo：API 部署到 Render，Frontend 部署到 Vercel，Vercel NEXT_PUBLIC_LAEL_API_URL 必须指向 Render API，Render LAEL_PUBLIC_CALLBACK_BASE_URL 也必须是 Render API URL。",
+      "进行人工测试：在 Manual Tests 按 Step 顺序点击 Run Step，并根据结果 Mark Pass 或 Mark Fail。",
+    ],
+  },
+  {
+    title: "注意事项",
+    summary: "MVP 的学习和治理能力必须受边界约束。",
+    items: [
+      "Learning 不自动提高额度。",
+      "Learning 不自动加入新收款人。",
+      "Learning 不绕过人工确认。",
+      "Learning 不自动导出训练数据。",
+      "AGT 不替代 Luffa DID、wallet signing、settlement。",
+      "当前真实链上验收以已完成的 Base Sepolia、Endless Mainnet、BNB Mainnet、Solana Mainnet 小额闭环为准；主网真实执行仍必须显式开启安全门、二次确认和金额上限。",
+      "主网 receipt 记录必须有真实钱包 txHash；空 txHash 或 mock_ txHash 会被前端和 API 拒绝，不能作为真实链上完成。",
+      "BNB Mainnet 已在用户明确确认后完成 0.000001 BNB 小额自转；2026-06-16 用户确认主网测试通过即可，BNB Testnet 仅保留为可选补证。",
+      "Solana Mainnet 已在用户明确确认后完成 0.000001 SOL 小额自转；2026-06-16 用户确认主网测试通过即可，Solana Devnet 仅保留为可选补证。",
+      "Base / BNB 属于 EVM lane，可以通过 MetaMask / OKX Wallet 支持；Endless 不按 EVM add-network 处理。",
+      "Endless 浏览器真实链上执行优先通过官方 Endless Web Wallet SDK；Luffa App QR / WebView 保留为原生授权协议路径。",
+      "OKX Endless 原生支持需要 OKX 公开 Endless provider 或支持 Endless Wallet Standard。",
+      "Luffa App 独立二维码授权已升级为 luffa-endless-auth:v1；Mock App Callback 只会生成 protocol_mock receipt，不能算真实 App 联调完成。",
+      "登录签名不得夹带转账 intent；如果只是连接 Luffa/Endless 钱包，签名消息应为 login session，只证明账号控制权和 session nonce。",
+      "未配置 LAEL_PUBLIC_CALLBACK_BASE_URL 时 callbackLocalOnly=true，只能做本地协议验收；真实 Luffa App 扫码必须使用 public HTTPS callbackUrl 和 scanUrl。",
+      "真实 Luffa App callback 若缺少 publicKey、fullMessage 或 signature，或签名消息与 session nonce 不匹配，必须被拒绝。",
+      "手机端若直接提示无效二维码且 API debug events 为空，不应继续反复扫码；应先确认 App 端实际接受的 QR schema 或 deep link 格式。",
+      "Cloudflare public callback 返回 1033 / 530 时不要扫码；先恢复 tunnel 并跑 npm run health:luffa-app，只有 ok=true 才生成新 QR。",
+      "公网 demo 不使用本机 Cloudflare tunnel；如果页面仍显示 localhost 或 lael.clawworld.eu.cc callback，说明部署 env 配错。",
+      "Luffa App bridge 若对 packageTransactionV2 返回空 rawData、1006/1009 或 invalidParameter，不应继续反复扫码；应切换到 Endless Web Wallet 做真实 txHash 验证，并把 App bridge payload 兼容作为单独待办。",
+      "swap / fiat proof 当前是模拟路径或证明记录路径，不接真实 DEX、Stripe、银行或 on/off-ramp provider。",
+      "raw input、wallet address、private context、feedback comment 默认不建议公开披露。",
+    ],
+  },
+  {
+    title: "文档与测试报告索引",
+    summary: "仓库 docs/ 是长期备案源，前端 Project Docs 是面向演示和验收的阅读入口。",
+    items: [
+      "需求文档、MVP 文档、测试方案、测试报告、AGT 评估和浏览器验收报告都应在 docs/ 中保留。",
+      "根目录 NEXT_SESSION_HANDOFF.md 是新会话继续开发的固定入口，后续每次重要迭代提交前必须更新。",
+      "第一轮测试报告和第二轮前端闭环测试报告不能互相覆盖。",
+      "Base Sepolia / Mainnet Guard / Endless QR 验收报告记录当前链上实测入口和安全边界。",
+      "MVP 验收矩阵记录 2026-06-15 前所有交付物、验收路径、证据要求和用户协助点。",
+      "Wallet Integration Demo Script 记录 3-5 分钟固定演示流程，主线是 Base Sepolia txHash、receipt、feedback / learning、mainnet guard 和 Endless QR。",
+      "Real-environment Test Report 已记录真实 Base Sepolia txHash、completed receipt / feedback 截图、BaseScan evidence、mainnet guard 和 Endless QR protocol-level 截图。",
+      "Internal Technical One-pager 用一页同步 Runtime Fabric 定位、已验证 MVP 能力、证据、安全边界、风险和下一步。",
+      "Session Dev / Verification Report 记录本会话开发项、验证过程、服务在线状态、截图证据和 demo video voiceover refresh 暂停点。",
+      "P0/P1/P2 Native App / Wallet / Reward Verification Report 记录本轮 Luffa App 授权协议、真实钱包证据目标、Task Reward 场景和手工阻塞项。",
+      "Endless Web Wallet Session Report 记录 2026-06-15 Web Wallet SDK 路径、wallet binding/publicKey 修复、Task Reward 0.001 EDS proposal、Endless Mainnet 小额真实 txHash、receipt、feedback 和 learning。",
+      "BNB Mainnet Small-value Transfer Report 记录 2026-06-15 BNB Mainnet 0.000001 BNB 自转、BNB mainnet 解析修复、真实 txHash、public RPC receipt、LAEL receipt、feedback 和 learning。",
+      "Solana Mainnet Small-value Transfer Report 记录 2026-06-15 Solana Mainnet 0.000001 SOL 自转、Solana mainnet RPC / receipt 修复、真实 signature、public RPC receipt、LAEL receipt、feedback 和 learning。",
+      "Luffa App QR parser/schema 复测记录：public callback ready 后，三种新 QR 均被手机 App 判定无效，最小 login session 保持 waiting 且 debug events 为空。",
+      "Endless Mainnet receipt API verification 已修复 /v2/settlement/tx/:txHash 按 chainId=220 查询主网 RPC；主网 txHash G1eVEi3JxrmPuoEjdXc1hLNuwqB9TscAVQzxo6vG5iid 返回 SUCCESS、blockNumber 188036997、sender、recipient 和 payload amount 证据。",
+      "Mainnet receipt guard 已补强：Approve & Record 和 /execute 都拒绝主网空 txHash 或 mock_ txHash，防止 local mock receipt 被误标为真实链上完成。",
+      "Luffa App QR Schema Confirmation Request 已新增，用于让 App 侧确认扫码入口接受的 QR 内容类型、deep link / universal link 示例和 callback body schema。",
+      "Luffa App Endless Mainnet Task Reward Report 记录 2026-06-16 App bridge 修复、txHash D48oBNUHyigrBzpgWRvqyRyGpGNDXnsjKpht9hN9GGNL、链上 receipt、LAEL execution、feedback 和 learning。",
+      "P0-P2 Comprehensive Test Summary 汇总 P0 Luffa App QR / WebView 授权、P1 真实钱包小额闭环、P2 Task Reward 业务闭环、服务状态、自动化验证和非阻塞后续项。",
+      "Full Regression QA Report 记录 2026-06-16 前端裸样式根因、Next.js dev/build 输出隔离、CSS smoke、QA Runner 环境隔离、全自动检查通过和服务健康。",
+      "Wallet Stability Fix Report 记录 2026-06-16 Endless Web Wallet modal / timeout、Solana 余额和 fee 预检、Solana RPC fallback、Runtime Error 防护和当前 public callback 1033 / 530 caveat。",
+      "Deployment / Demo Testing docs 记录公网 demo 的 Render / Vercel 环境变量、public callback、smoke 测试和失败分类。",
+      "AGT 评估、实施计划和浏览器验收截图报告需要单独标明阶段和结论。",
+      "Project Docs 只说明 Evidence / Learning 的模块含义，不显示 live execution evidence、learning、测试面板或 JSON 状态。",
+      projectDocsMaintenanceRule,
+    ],
+  },
+];
+
+export const projectDocsIndex: ProjectDocIndexItem[] = [
+  {
+    type: "Next Session",
+    file: "NEXT_SESSION_HANDOFF.md",
+    note: "新会话继续开发的根目录固定入口，包含启动提示词、当前分支、必读文档、验证命令和维护规则。",
+  },
+  {
+    type: "Requirements",
+    file: "LAEL_REQUIREMENTS_v0.3.zh.md / LAEL_REQUIREMENTS_v0.3.en.md",
+    note: "定义 LAEL / Luffa Fabric 总体定位、五层闭环、双路径能力和 Governance Extension。",
+  },
+  {
+    type: "MVP",
+    file: "LAEL_MVP_v0.3.zh.md / LAEL_MVP_v0.3.en.md",
+    note: "定义 Unified Agent Runtime Fabric MVP 的范围、场景、用户故事和验收边界。",
+  },
+  {
+    type: "Test Plan",
+    file: "LAEL_TEST_PLAN_v0.3.zh.md / LAEL_TEST_PLAN_v0.3.en.md",
+    note: "定义 Off-chain Runtime、On-chain Transfer、Swap、Fiat Proof、Governance / AGT Adapter 的测试方式。",
+  },
+  {
+    type: "Timeline",
+    file: "LAEL_DOCS_TIMELINE_v0.3.zh.md",
+    note: "按时间顺序索引需求、计划、测试方案、测试报告和 AGT 文档。",
+  },
+  {
+    type: "AGT Integration",
+    file: "LAEL_AGT_INTEGRATION_v0.3.zh.md",
+    note: "说明 Microsoft AGT 是 Governance Extension 的可选积木，并记录 Adapter PoC 定位。",
+  },
+  {
+    type: "AGT Evaluation",
+    file: "LAEL_AGT_NEXT_STEP_EVALUATION_2026-06-02.zh.md",
+    note: "单独评估真实 AGT runtime / policy engine、fork、MCP Security Gateway 和浏览器报告。",
+  },
+  {
+    type: "AGT Plan",
+    file: "LAEL_AGT_IMPLEMENTATION_PLAN_2026-06-02.zh.md",
+    note: "未来阶段落地规划；当前 MVP 只保留 Adapter PoC、前端展示和 evidence mapping。",
+  },
+  {
+    type: "Browser Acceptance",
+    file: "LAEL_AGT_BROWSER_ACCEPTANCE_REPORT_2026-06-02.zh.md",
+    note: "记录 AGT 前端展示和浏览器人工验收截图。",
+  },
+  {
+    type: "Multi-chain Wallet",
+    file: "LAEL_MULTICHAIN_WALLET_SUPPORT_TEST_REPORT_2026-06-02.zh.md",
+    note: "记录 Base、BNB、Solana、Endless 的主网/测试网支持、MetaMask / OKX / Phantom 钱包入口和 Luffa App QR 下一阶段规划。",
+  },
+  {
+    type: "On-chain Acceptance",
+    file: "LAEL_BASE_SEPOLIA_ACCEPTANCE_REPORT_2026-06-04.zh.md",
+    note: "记录 Base Sepolia 标准手工验收、Base Mainnet env + 页面二次确认安全门、Endless QR session / callback / polling 协议级验收。",
+  },
+  {
+    type: "MVP Acceptance",
+    file: "LAEL_MVP_ACCEPTANCE_MATRIX_2026-06-04.zh.md",
+    note: "记录 2026-06-15 前 Full MVP testing、wallet integration demo、real-environment report、internal one-pager 和可选 demo video 的验收矩阵。",
+  },
+  {
+    type: "Wallet Demo",
+    file: "LAEL_WALLET_INTEGRATION_DEMO_SCRIPT_2026-06-04.zh.md",
+    note: "记录 3-5 分钟钱包集成演示脚本，覆盖 Base Sepolia txHash、receipt、feedback / learning、Base Mainnet guard 和 Endless QR protocol。",
+  },
+  {
+    type: "Real Environment",
+    file: "LAEL_REAL_ENVIRONMENT_TEST_REPORT_2026-06-04.zh.md",
+    note: "记录 Base Sepolia 真实环境交易、completed receipt / feedback 截图、BaseScan evidence、mainnet guard 和 Endless QR protocol-level 截图。",
+  },
+  {
+    type: "One-pager",
+    file: "LAEL_INTERNAL_TECHNICAL_ONE_PAGER_2026-06-06.zh.md",
+    note: "一页内部技术摘要，覆盖 Runtime Fabric 定位、已验证 MVP 能力、证据、安全边界、风险和下一步。",
+  },
+  {
+    type: "Session Report",
+    file: "LAEL_SESSION_DEV_VERIFICATION_REPORT_2026-06-09.zh.md",
+    note: "记录本会话开发、验证、服务在线状态、截图证据、demo video 当前状态和 voiceover refresh 暂停点。",
+  },
+  {
+    type: "P0/P1/P2 Verification",
+    file: "LAEL_P0_P1_P2_NATIVE_APP_REWARD_VERIFICATION_REPORT_2026-06-12.zh.md",
+    note: "记录 luffa-endless-auth:v1、Luffa App signed callback / WebView bridge、Base/BNB/Solana/Endless 手工证据要求和 Task Reward 业务场景。",
+  },
+  {
+    type: "Endless Web Wallet",
+    file: "LAEL_ENDLESS_WEB_WALLET_SESSION_REPORT_2026-06-15.zh.md",
+    note: "记录 Endless Web Wallet SDK 集成、address/publicKey 验签修复、Task Reward 0.001 EDS proposal、Endless Mainnet 小额真实 txHash、receipt、feedback 和 learning。",
+  },
+  {
+    type: "BNB Mainnet",
+    file: "LAEL_BNB_MAINNET_SMALL_VALUE_TRANSFER_REPORT_2026-06-15.zh.md",
+    note: "记录 BNB Mainnet 0.000001 BNB 自转、BNB mainnet prompt 解析修复、真实 txHash、public RPC receipt、LAEL receipt、feedback 和 learning。",
+  },
+  {
+    type: "Solana Mainnet",
+    file: "LAEL_SOLANA_MAINNET_SMALL_VALUE_TRANSFER_REPORT_2026-06-15.zh.md",
+    note: "记录 Solana Mainnet 0.000001 SOL 自转、Solana mainnet RPC / receipt 修复、真实 signature、public RPC receipt、LAEL receipt、feedback 和 learning。",
+  },
+  {
+    type: "Luffa App QR",
+    file: "LAEL_LUFFA_APP_QR_SCHEMA_REQUEST_2026-06-16.zh.md",
+    note: "汇总 Luffa App QR parser/schema 阻塞、当前服务状态、callback contract 和 App 侧需确认的问题。",
+  },
+  {
+    type: "Luffa App Endless Mainnet",
+    file: "LAEL_LUFFA_APP_ENDLESS_MAINNET_TASK_REWARD_REPORT_2026-06-16.zh.md",
+    note: "记录 Luffa App bridge 两步交易流程修复、Endless Mainnet txHash、链上 receipt、LAEL execution、feedback 和 learning。",
+  },
+  {
+    type: "P0-P2 Summary",
+    file: "LAEL_P0_P2_COMPREHENSIVE_TEST_SUMMARY_2026-06-16.zh.md",
+    note: "汇总 P0 Luffa App QR/WebView 授权、P1 真实钱包小额闭环、P2 Task Reward 业务闭环、服务状态、自动化验证和非阻塞备注。",
+  },
+  {
+    type: "Regression QA",
+    file: "LAEL_FULL_REGRESSION_QA_REPORT_2026-06-16.zh.md",
+    note: "记录前端 dev/build 产物隔离、CSS smoke、QA Runner 环境隔离、全自动检查通过和服务健康。",
+  },
+  {
+    type: "Wallet Stability",
+    file: "LAEL_WALLET_STABILITY_FIX_REPORT_2026-06-16.zh.md",
+    note: "记录 Endless Web Wallet modal / timeout、Solana 余额和 fee 预检、Solana RPC fallback、Runtime Error 防护和当前 public callback 1033 / 530 caveat。",
+  },
+  {
+    type: "Iteration History",
+    file: "LAEL_PROJECT_ITERATION_HISTORY_2026-06-02.zh.md",
+    note: "记录项目从 v0.1/v0.2 Payment Agent demo 演进到 v0.3 Runtime Fabric、AGT、多链钱包和协作基线的过程。",
+  },
+  {
+    type: "Collaboration Handoff",
+    file: "LAEL_COLLABORATION_HANDOFF_2026-06-02.zh.md",
+    note: "给协作同事说明 GitHub 分支、运行方式、验证命令、钱包边界和协作规则。",
+  },
+];
