@@ -6,8 +6,10 @@
   "type": "module",
   "scripts": {
     "dev": "NEXT_DIST_DIR=.next-live next dev --hostname 127.0.0.1 --port 3001",
-    "build": "NEXT_DIST_DIR=.next-build next build",
-    "start": "NEXT_DIST_DIR=.next-build next start --hostname 127.0.0.1 --port 3001",
+    "build": "next build",
+    "build:local": "NEXT_DIST_DIR=.next-build next build",
+    "start": "next start --hostname 127.0.0.1 --port 3001",
+    "start:local": "NEXT_DIST_DIR=.next-build next start --hostname 127.0.0.1 --port 3001",
     "lint": "next lint"
   },
   "dependencies": {

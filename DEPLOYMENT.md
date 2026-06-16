@@ -27,7 +27,7 @@ LAEL_MAINNET_MAX_AMOUNT_ETH=0.001
 Render build command:
 
 ```bash
-npm ci && npm run build
+npm ci --include=dev && npm run build
 ```
 
 Render start command:
@@ -53,6 +53,8 @@ Root Directory: src/frontend
 Framework: Next.js
 Build Command: npm run build
 ```
+
+Vercel uses the standard Next.js `.next` output. Local isolated build artifacts remain available through `npm run build:local` and `npm run start:local`.
 
 Required Vercel environment:
 

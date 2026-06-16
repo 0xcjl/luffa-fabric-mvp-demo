@@ -5,6 +5,7 @@ src/frontend/.next/
 src/frontend/.next-dev/
 src/frontend/.next-build/
 src/frontend/.next-live/
+src/frontend/.vercel/
 coverage/
 *.db
 *.db-shm
