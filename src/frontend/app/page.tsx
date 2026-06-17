@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { WalletReadyState, type WalletName } from "@solana/wallet-adapter-base";
 import { useWallet as useSolanaWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { clusterApiUrl, Connection, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
@@ -49,6 +50,8 @@ const SOLANA_DEVNET_ENDPOINT = clusterApiUrl("devnet");
 const SOLANA_MAINNET_ENDPOINT = "https://api.mainnet-beta.solana.com";
 const SOLANA_MAINNET_FALLBACK_ENDPOINT = "https://solana-rpc.publicnode.com";
 const SOLANA_FEE_FALLBACK_LAMPORTS = 100000;
+const EVM_CONNECTOR_PRIORITY = ["okx", "metaMask", "rabby", "phantom", "injected"];
+const PHANTOM_WALLET_NAME = "Phantom" as WalletName<"Phantom">;
 type ChainOption = {
   chainKey: "BASE_SEPOLIA" | "BASE_MAINNET" | "BNB_TESTNET" | "BNB_MAINNET" | "SOLANA_DEVNET" | "SOLANA_MAINNET" | "ENDLESS_TESTNET" | "ENDLESS_MAINNET";
   label: string;
@@ -473,9 +476,9 @@ type EvidenceCard = {
 export default function Page() {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
-  const { connect, connectors, isPending: evmConnectPending } = useConnect();
+  const { connectAsync, connectors, isPending: evmConnectPending } = useConnect();
   const { disconnect } = useDisconnect();
-  const { switchChain } = useSwitchChain();
+  const { switchChain, switchChainAsync } = useSwitchChain();
   const { signMessageAsync } = useSignMessage();
   const { sendTransactionAsync } = useSendTransaction();
   const solanaWallet = useSolanaWallet();
@@ -516,6 +519,7 @@ export default function Page() {
   const [endlessQrSession, setEndlessQrSession] = useState<EndlessQrSessionView | null>(null);
   const [endlessQrImageUrl, setEndlessQrImageUrl] = useState("");
   const [endlessQrModalOpen, setEndlessQrModalOpen] = useState(false);
+  const [okxSolanaAddress, setOkxSolanaAddress] = useState("");
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfig>(DEFAULT_RUNTIME_CONFIG);
   const [mainnetRiskAccepted, setMainnetRiskAccepted] = useState(false);
 
@@ -523,9 +527,10 @@ export default function Page() {
   const selectedEvmChainId = selectedChain.wagmiChainId ?? baseSepolia.id;
   const activeOnSelectedEvmChain = selectedChain.chainType === "evm" && chainId === selectedEvmChainId;
   const solanaAddress = solanaWallet.publicKey?.toBase58();
+  const activeSolanaAddress = solanaAddress ?? okxSolanaAddress;
   const walletAddress =
     selectedChain.chainType === "solana"
-      ? solanaAddress ?? ""
+      ? activeSolanaAddress
       : selectedChain.chainType === "endless"
         ? endlessAccount
         : address ?? "";
@@ -658,42 +663,68 @@ export default function Page() {
   }, [endlessQrSession]);
 
   useEffect(() => {
-    if (selectedChain.chainKey !== "SOLANA_MAINNET" || !solanaAddress) return;
+    if (selectedChain.chainKey !== "SOLANA_MAINNET" || !activeSolanaAddress) return;
     if (recipientAddress.trim() && !SOLANA_SELF_TRANSFER_PLACEHOLDERS.has(recipientAddress.trim())) return;
-    setRecipientAddress(solanaAddress);
-  }, [recipientAddress, selectedChain.chainKey, solanaAddress]);
+    setRecipientAddress(activeSolanaAddress);
+  }, [activeSolanaAddress, recipientAddress, selectedChain.chainKey]);
+
+  useEffect(() => {
+    if (solanaWallet.wallet || solanaWallet.connected) return;
+    const phantom = findPhantomWalletAdapter(solanaWallet.wallets);
+    if (!phantom) return;
+    solanaWallet.select(PHANTOM_WALLET_NAME);
+  }, [solanaWallet.connected, solanaWallet.wallet, solanaWallet.wallets, solanaWallet.select]);
+
+  function getActiveSolanaSigner(phantomAddress?: string): {
+    source: "phantom" | "okx";
+    address?: string;
+    okxProvider?: OkxSolanaProvider;
+  } {
+    if (phantomAddress) return { source: "phantom", address: phantomAddress };
+    const okxProvider = getOkxSolanaProvider();
+    if (okxSolanaAddress && okxProvider) return { source: "okx", address: okxSolanaAddress, okxProvider };
+    return { source: "phantom" };
+  }
 
   async function bindWallet() {
     if (selectedChain.chainType === "solana") {
       const connected = await ensureSolanaConnected();
-      if (!connected || !solanaWallet.publicKey) {
+      const solanaSigner = getActiveSolanaSigner(solanaWallet.publicKey?.toBase58());
+      if (!connected || !solanaSigner.address) {
         return;
       }
-      if (!solanaWallet.signMessage) {
+      if (solanaSigner.source === "phantom" && !solanaWallet.signMessage) {
         setLog((items) => ["Selected Solana wallet does not support signMessage for DID binding", ...items].slice(0, 12));
         return;
       }
-      const publicKey = solanaWallet.publicKey.toBase58();
+      if (solanaSigner.source === "okx" && !solanaSigner.okxProvider?.signMessage) {
+        setLog((items) => ["OKX Solana provider does not support signMessage for DID binding; choose Phantom or another Solana wallet.", ...items].slice(0, 12));
+        return;
+      }
+      const publicKey = solanaSigner.address;
       const pending = await callApi<{ bindingId: string; nonce: string; message: string }>("/v2/wallet/connect", {
         method: "POST",
         body: JSON.stringify({
           ownerRef,
-          walletType: "phantom",
+          walletType: solanaSigner.source === "okx" ? "okx-solana" : "phantom",
           chainType: "solana",
           address: publicKey,
         }),
       });
-      const signature = await solanaWallet.signMessage(new TextEncoder().encode(pending.message));
+      const signature =
+        solanaSigner.source === "okx"
+          ? normalizeSolanaSignature(await solanaSigner.okxProvider!.signMessage!(new TextEncoder().encode(pending.message), "utf8"))
+          : bytesToBase64(await solanaWallet.signMessage!(new TextEncoder().encode(pending.message)));
       await callApi("/v2/wallet/verify", {
         method: "POST",
         body: JSON.stringify({
           bindingId: pending.bindingId,
           ownerRef,
-          walletType: "phantom",
+          walletType: solanaSigner.source === "okx" ? "okx-solana" : "phantom",
           chainType: "solana",
           address: publicKey,
           nonce: pending.nonce,
-          signature: bytesToBase64(signature),
+          signature,
         }),
       });
       return;
@@ -736,12 +767,12 @@ export default function Page() {
     setFeedbackStatus("");
     const inputText = overrides.input ?? rawInput;
     const proposalWalletAddress = walletAddress || fallbackWalletAddress(selectedChain);
-    const defaultRecipientAddress = effectiveRecipientAddressForChain(selectedChain, recipientAddress, solanaAddress);
+    const defaultRecipientAddress = effectiveRecipientAddressForChain(selectedChain, recipientAddress, activeSolanaAddress);
     if (selectedChain.chainType === "endless" && defaultRecipientAddress !== recipientAddress.trim()) {
       setLog((items) => ["Using Alice's fixed Endless address for this real-chain reward validation.", ...items].slice(0, 12));
     }
-    if (selectedChain.chainKey === "SOLANA_MAINNET" && solanaAddress && defaultRecipientAddress === solanaAddress && defaultRecipientAddress !== recipientAddress.trim()) {
-      setRecipientAddress(solanaAddress);
+    if (selectedChain.chainKey === "SOLANA_MAINNET" && activeSolanaAddress && defaultRecipientAddress === activeSolanaAddress && defaultRecipientAddress !== recipientAddress.trim()) {
+      setRecipientAddress(activeSolanaAddress);
       setLog((items) => ["Using connected Solana wallet as the mainnet self-transfer recipient for this small-value demo.", ...items].slice(0, 12));
     }
     const nextProposal = await callApi<Proposal>("/v2/payment-agent/proposals", {
@@ -775,7 +806,7 @@ export default function Page() {
       businessAction: "task_reward",
       max: selectedChain.chainType === "endless" ? "0.001" : maxAmount,
       allowedChain: selectedChain.chainKey,
-      recipients: [{ name: "Alice", address: effectiveRecipientAddressForChain(selectedChain, recipientAddress, solanaAddress) }],
+      recipients: [{ name: "Alice", address: effectiveRecipientAddressForChain(selectedChain, recipientAddress, activeSolanaAddress) }],
     });
   }
 
@@ -811,9 +842,15 @@ export default function Page() {
     }
     if (selectedChain.chainType === "solana") {
       const connected = await ensureSolanaConnected();
-      if (!connected || !solanaWallet.publicKey) return;
-      if (!solanaWallet.signTransaction) {
+      const solanaSigner = getActiveSolanaSigner(solanaWallet.publicKey?.toBase58());
+      if (!connected || !solanaSigner.address) return;
+      if (solanaSigner.source === "phantom" && !solanaWallet.signTransaction) {
         setLog((items) => ["Selected Solana wallet does not support explicit signTransaction; use Phantom or another Solana wallet with transaction signing.", ...items].slice(0, 12));
+        return;
+      }
+      if (solanaSigner.source === "okx" && !solanaSigner.okxProvider?.signTransaction) {
+        setLog((items) => ["OKX Solana provider does not support signTransaction for this transaction; choose Phantom or another Solana wallet.", ...items].slice(0, 12));
+        setSolanaWalletModalVisible(true);
         return;
       }
       try {
@@ -834,7 +871,7 @@ export default function Page() {
           return;
         }
         const { connection, endpoint, latestBlockhash } = rpcContext;
-        const sender = solanaWallet.publicKey;
+        const sender = new PublicKey(solanaSigner.address);
         const recipientAddress = proposal.parsedIntent.recipientAddress.trim();
         if (selectedChain.chainKey === "SOLANA_MAINNET" && SOLANA_SELF_TRANSFER_PLACEHOLDERS.has(recipientAddress)) {
           setLog((items) =>
@@ -879,7 +916,10 @@ export default function Page() {
             ...items,
           ].slice(0, 12),
         );
-        const signedTransaction = await solanaWallet.signTransaction(transaction);
+        const signedTransaction =
+          solanaSigner.source === "okx"
+            ? normalizeSignedSolanaTransaction(await solanaSigner.okxProvider!.signTransaction!(transaction))
+            : await solanaWallet.signTransaction!(transaction);
         const signedBySender = signedTransaction.signatures.some((signature) => signature.publicKey.equals(sender) && signature.signature);
         if (!signedBySender) {
           setLog((items) => [`Solana wallet signed with a different account than the connected sender ${sender.toBase58()}; disconnect and reconnect Phantom with the funded account selected.`, ...items].slice(0, 12));
@@ -899,8 +939,8 @@ export default function Page() {
       return;
     }
 
-    if (!activeOnSelectedEvmChain) {
-      await switchChain({ chainId: selectedEvmChainId });
+    if (!(await ensureSelectedEvmConnected(selectedChain))) {
+      return;
     }
     const asset = proposal.parsedIntent.asset;
     const amount = proposal.parsedIntent.amount;
@@ -1096,7 +1136,7 @@ export default function Page() {
     const amount = isLogin ? 0 : currentProposal?.parsedIntent.amount ?? extractAmount(rawInput) ?? 1;
     const intent = isLogin ? "Connect Luffa App wallet to LAEL DID" : currentProposal?.rawInput ?? rawInput;
     const proposalRecipient = currentProposal?.parsedIntent.recipientAddress ?? recipientAddress;
-    const recipient = isLogin ? "" : effectiveRecipientAddressForChain(chain, proposalRecipient, solanaAddress);
+    const recipient = isLogin ? "" : effectiveRecipientAddressForChain(chain, proposalRecipient, activeSolanaAddress);
     if (!isLogin && chain.chainType === "endless" && !isEndlessRuntimeAddress(recipient)) {
       setEndlessStatus("A real Endless transaction requires a Luffa / Endless recipient address, not an EVM 0x address.");
       setLog((items) => ["Enter a real Luffa / Endless recipient address or use Alice's fixed Endless reward address.", ...items].slice(0, 12));
@@ -1237,6 +1277,13 @@ export default function Page() {
       const sdk = new EndlessJsSdk({ network: chain.networkKind === "mainnet" ? Network.MAINNET : Network.TESTNET, colorMode: "light" });
       sdk.open();
       forceEndlessWebWalletModalVisible();
+      window.setTimeout(() => {
+        if (!endlessWebWalletModalHasLoadError()) return;
+        const message = "Endless Web Wallet window failed to load. Check access to https://wallet.endless.link/wallet/ or use Luffa App QR.";
+        setEndlessStatus(message);
+        setLog((items) => [message, ...items].slice(0, 12));
+        void createEndlessQrSession(chain, null, "login");
+      }, 3000);
       const connected = await sdk.connect();
       if (connected.status !== UserResponseStatus.APPROVED) {
         setEndlessAuthStatus("rejected");
@@ -1305,13 +1352,75 @@ export default function Page() {
     }
   }
 
+  async function ensureSelectedEvmConnected(chain: ChainOption = selectedChain): Promise<boolean> {
+    if (!isConnected) {
+      const preferredConnector = selectPreferredEvmConnector(connectors);
+      const orderedConnectors = orderedPreferredEvmConnectors(connectors);
+      if (!preferredConnector || orderedConnectors.length === 0) {
+        setLog((items) => ["No EVM wallet provider found. Install OKX Wallet, MetaMask, Rabby, Phantom, or another injected wallet.", ...items].slice(0, 12));
+        return false;
+      }
+      const failures: string[] = [];
+      let connectedWith = "";
+      for (const connector of orderedConnectors) {
+        try {
+          await connectAsync({ connector, chainId: chain.wagmiChainId ?? selectedEvmChainId });
+          connectedWith = connector.name;
+          break;
+        } catch (error) {
+          failures.push(`${connector.name}: ${messageFromError(error)}`);
+        }
+      }
+      if (!connectedWith) {
+        setLog((items) => [`EVM wallet connection failed. Tried OKX -> MetaMask -> Rabby -> Phantom -> generic injected. ${failures.join(" | ")}`, ...items].slice(0, 12));
+        return false;
+      }
+      setLog((items) => [`Connected EVM wallet with ${connectedWith}`, ...items].slice(0, 12));
+    }
+    if (chain.wagmiChainId && chainId !== chain.wagmiChainId) {
+      try {
+        await switchChainAsync({ chainId: chain.wagmiChainId });
+      } catch (error) {
+        setLog((items) => [`Switch to ${chain.label} failed: ${messageFromError(error)}`, ...items].slice(0, 12));
+        return false;
+      }
+    }
+    return true;
+  }
+
   async function ensureSolanaConnected(): Promise<boolean> {
+    if (solanaWallet.publicKey || okxSolanaAddress) return true;
+    const phantom = findPhantomWalletAdapter(solanaWallet.wallets);
+    if (phantom && !solanaWallet.wallet) {
+      solanaWallet.select(PHANTOM_WALLET_NAME);
+      setLog((items) => ["Selecting Phantom for Solana wallet connection", ...items].slice(0, 12));
+      return false;
+    }
+    if (!solanaWallet.wallet && !phantom) {
+      const okxProvider = getOkxSolanaProvider();
+      if (okxProvider?.connect) {
+        try {
+          const connected = await okxProvider.connect();
+          const address = normalizeSolanaPublicKey(readSolanaPublicKeyLike(connected));
+          if (address) {
+            setOkxSolanaAddress(address);
+            setLog((items) => [`Connected Solana wallet with OKX Wallet: ${shortAddress(address)}`, ...items].slice(0, 12));
+            return true;
+          }
+          setLog((items) => ["OKX Solana provider did not return a public key; opening Solana wallet selector.", ...items].slice(0, 12));
+        } catch (error) {
+          setLog((items) => [`OKX Solana connection failed: ${messageFromError(error)}; opening Solana wallet selector.`, ...items].slice(0, 12));
+        }
+      }
+      setSolanaWalletModalVisible(true);
+      setLog((items) => ["Phantom not found; choose another Solana wallet", ...items].slice(0, 12));
+      return false;
+    }
     if (!solanaWallet.wallet) {
       setSolanaWalletModalVisible(true);
       setLog((items) => ["Select a Solana wallet first", ...items].slice(0, 12));
       return false;
     }
-    if (solanaWallet.publicKey) return true;
     try {
       await solanaWallet.connect();
       return true;
@@ -1328,20 +1437,11 @@ export default function Page() {
     setActiveTab("onchain");
     setWalletMenuOpen(false);
     if (nextChain.chainType === "evm") {
-      const connector = connectors[0];
-      if (connector && !isConnected) connect({ connector });
-      if (nextChain.wagmiChainId && isConnected && chainId !== nextChain.wagmiChainId) {
-        switchChain({ chainId: nextChain.wagmiChainId });
-      }
+      void ensureSelectedEvmConnected(nextChain);
       return;
     }
     if (nextChain.chainType === "solana") {
-      if (!solanaWallet.wallet) {
-        setSolanaWalletModalVisible(true);
-        setLog((items) => ["Opening Solana wallet selector", ...items].slice(0, 12));
-        return;
-      }
-      if (!solanaWallet.publicKey) void ensureSolanaConnected();
+      void ensureSolanaConnected();
       return;
     }
     if (nextChain.chainType === "endless" && !endlessAccount) {
@@ -1448,7 +1548,7 @@ export default function Page() {
       setLog((items) => [mainnetBlock, ...items].slice(0, 12));
       return undefined;
     }
-    const recipient = effectiveRecipientAddressForChain(selectedChain, currentProposal.parsedIntent.recipientAddress, solanaAddress);
+    const recipient = effectiveRecipientAddressForChain(selectedChain, currentProposal.parsedIntent.recipientAddress, activeSolanaAddress);
     if (!isEndlessRuntimeAddress(recipient)) {
       setEndlessStatus("A real Endless transaction requires a Luffa / Endless recipient address, not an EVM 0x address.");
       setLog((items) => ["Enter a real Endless recipient address before signing with Endless Web Wallet", ...items].slice(0, 12));
@@ -1465,6 +1565,13 @@ export default function Page() {
       const sdk = new EndlessJsSdk({ network, colorMode: "light" });
       sdk.open();
       forceEndlessWebWalletModalVisible();
+      window.setTimeout(() => {
+        if (!endlessWebWalletModalHasLoadError()) return;
+        const message = "Endless Web Wallet window failed to load. Check access to https://wallet.endless.link/wallet/ or use Luffa App QR.";
+        setEndlessStatus(message);
+        setLog((items) => [message, ...items].slice(0, 12));
+        void createEndlessQrSession(selectedChain, currentProposal);
+      }, 3000);
       const accountResult = await withTimeout(
         endlessAccount ? sdk.getAccount() : sdk.connect(),
         ENDLESS_WALLET_RESPONSE_TIMEOUT_MS,
@@ -1686,8 +1793,8 @@ export default function Page() {
                 chainId={chainId}
                 isEvmConnected={isConnected}
                 evmConnectPending={evmConnectPending}
-                solanaAddress={solanaAddress}
-                solanaConnected={Boolean(solanaWallet.publicKey)}
+                solanaAddress={activeSolanaAddress}
+                solanaConnected={Boolean(activeSolanaAddress)}
                 endlessAccount={endlessAccount}
                 endlessAccountSource={endlessAccountSource}
                 endlessStatus={endlessStatus}
@@ -1764,7 +1871,7 @@ export default function Page() {
             selectChain={selectChain}
             chainOptions={CHAIN_OPTIONS}
             address={address}
-            solanaAddress={solanaAddress}
+            solanaAddress={activeSolanaAddress}
             endlessAccount={endlessAccount}
             endlessAccountSource={endlessAccountSource}
             endlessStatus={endlessStatus}
@@ -1804,7 +1911,7 @@ export default function Page() {
             swapProposal={swapProposal}
             swapReceipt={swapReceipt}
             isConnected={isConnected}
-            solanaConnected={solanaWallet.connected}
+            solanaConnected={Boolean(activeSolanaAddress)}
           />
         )}
 
@@ -2664,6 +2771,102 @@ function buildEvidenceCards(input: {
   return cards;
 }
 
+type EvmConnectorCandidate = {
+  id: string;
+  name: string;
+};
+
+type OkxSolanaProvider = {
+  connect?: () => Promise<unknown>;
+  signTransaction?: (transaction: Transaction) => Promise<unknown>;
+  signMessage?: (message: Uint8Array, encoding?: string) => Promise<unknown>;
+  publicKey?: unknown;
+  isConnected?: boolean;
+};
+
+type WalletProviderCandidate = {
+  request?: (input: { method: string; params?: unknown[] | object[] }) => Promise<unknown>;
+  isOkxWallet?: boolean;
+  isOKExWallet?: boolean;
+  isMetaMask?: boolean;
+  isRabby?: boolean;
+  isPhantom?: boolean;
+};
+
+type BrowserWalletWindow = Window &
+  typeof globalThis & {
+    ethereum?: WalletProviderCandidate & { providers?: WalletProviderCandidate[] };
+    okxwallet?: WalletProviderCandidate & { solana?: OkxSolanaProvider };
+    okxWallet?: { solana?: OkxSolanaProvider };
+    phantom?: { solana?: unknown; ethereum?: WalletProviderCandidate };
+  };
+
+function selectPreferredEvmConnector<T extends EvmConnectorCandidate>(connectors: readonly T[]): T | undefined {
+  return orderedPreferredEvmConnectors(connectors)[0];
+}
+
+function orderedPreferredEvmConnectors<T extends EvmConnectorCandidate>(connectors: readonly T[]): T[] {
+  const ordered: T[] = [];
+  for (const preferredId of EVM_CONNECTOR_PRIORITY) {
+    const connector = connectors.find((candidate) => candidate.id === preferredId);
+    if (connector && !ordered.includes(connector)) ordered.push(connector);
+  }
+  for (const connector of connectors) {
+    if (!ordered.includes(connector)) ordered.push(connector);
+  }
+  return ordered;
+}
+
+function findPhantomWalletAdapter(wallets: Array<{ adapter: { name: WalletName }; readyState: WalletReadyState }>): { adapter: { name: WalletName }; readyState: WalletReadyState } | undefined {
+  return wallets.find((wallet) => wallet.adapter.name === PHANTOM_WALLET_NAME && (wallet.readyState === WalletReadyState.Installed || wallet.readyState === WalletReadyState.Loadable));
+}
+
+function getOkxSolanaProvider(): OkxSolanaProvider | undefined {
+  if (typeof window === "undefined") return undefined;
+  const walletWindow = window as BrowserWalletWindow;
+  const okxSolana = walletWindow.okxwallet?.solana ?? walletWindow.okxWallet?.solana;
+  if (okxSolana?.connect || okxSolana?.signTransaction) return okxSolana;
+  return undefined;
+}
+
+function readSolanaPublicKeyLike(value: unknown): unknown {
+  if (!value || typeof value !== "object") return value;
+  const record = value as { publicKey?: unknown; address?: unknown };
+  return record.publicKey ?? record.address ?? value;
+}
+
+function normalizeSolanaPublicKey(value: unknown): string {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "object" && "toBase58" in value && typeof value.toBase58 === "function") return value.toBase58();
+  if (typeof value === "object" && "toString" in value && typeof value.toString === "function") {
+    const next = value.toString();
+    return next === "[object Object]" ? "" : next;
+  }
+  return "";
+}
+
+function normalizeSignedSolanaTransaction(value: unknown): Transaction {
+  if (value instanceof Transaction) return value;
+  if (value && typeof value === "object" && "transaction" in value && value.transaction instanceof Transaction) return value.transaction;
+  throw new Error("Solana wallet did not return a signed Transaction");
+}
+
+function normalizeSolanaSignature(value: unknown): string {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (value instanceof Uint8Array) return bytesToBase64(value);
+  if (typeof value === "object" && "signature" in value) return normalizeSolanaSignature(value.signature);
+  return "";
+}
+
+function endlessWebWalletModalHasLoadError(): boolean {
+  if (typeof document === "undefined") return false;
+  const modal = document.getElementById(ENDLESS_MODAL_CONTAINER_ID);
+  const text = modal?.textContent ?? "";
+  return text.includes("chrome-error://") || text.includes("暂时无法连接") || text.includes("ERR_TUNNEL") || text.includes("wallet.endless.link");
+}
+
 function fallbackWalletAddress(chain: ChainOption): string {
   if (chain.chainType === "solana") return "So11111111111111111111111111111111111111112";
   if (chain.chainType === "endless") return ALICE_ENDLESS_ADDRESS;
@@ -2968,7 +3171,7 @@ function WalletMenu({
                     </div>
                     <div className="grid gap-2">
                       <button className="rounded-md bg-ink px-3 py-2 text-xs font-black text-white disabled:opacity-40" disabled={chain.chainType === "evm" && evmConnectPending} onClick={() => onSelectNetwork(chain.chainKey)}>
-                        {chain.chainType === "evm" ? (evmConnectPending ? "Connecting" : "Use MetaMask / OKX") : chain.chainType === "solana" ? "Use Phantom / Solana" : "Use Endless Web Wallet"}
+                        {chain.chainType === "evm" ? (evmConnectPending ? "Connecting" : "Use OKX / MetaMask / Rabby / Phantom") : chain.chainType === "solana" ? "Use Phantom / OKX" : "Use Endless Web Wallet"}
                       </button>
                       {chain.chainKey === "BNB_TESTNET" ? (
                         <button className="rounded-md border border-grid bg-white px-3 py-2 text-xs font-black text-ink" onClick={onAddBnb}>

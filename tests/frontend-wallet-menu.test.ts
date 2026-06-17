@@ -8,9 +8,15 @@ const envExample = readFileSync("src/frontend/.env.local.example", "utf8");
 describe("frontend wallet menu", () => {
   it("shows common wallet names without WalletConnect or Project ID copy", () => {
     expect(page).toContain("MetaMask / OKX Wallet");
-    expect(page).toContain("Use MetaMask / OKX");
+    expect(page).toContain("Use OKX / MetaMask / Rabby / Phantom");
     expect(page).toContain("Phantom / Solana Wallet");
-    expect(page).toContain("Use Phantom / Solana");
+    expect(page).toContain("Use Phantom / OKX");
+    expect(providers).toContain('id: "okx"');
+    expect(providers).toContain('id: "rabby"');
+    expect(providers).toContain('injected({ target: "metaMask" })');
+    expect(providers).toContain('injected({ target: "phantom" })');
+    expect(page).toContain('const EVM_CONNECTOR_PRIORITY = ["okx", "metaMask", "rabby", "phantom", "injected"]');
+    expect(page).toContain("selectPreferredEvmConnector(connectors)");
     expect(page).not.toContain("WalletConnect");
     expect(page).not.toContain("Project ID");
     expect(envExample).not.toContain("WalletConnect");
@@ -38,6 +44,10 @@ describe("frontend wallet menu", () => {
   it("handles Solana selection and Endless bridge absence without runtime overlay errors", () => {
     expect(page).toContain("useWalletModal");
     expect(page).toContain("setSolanaWalletModalVisible(true)");
+    expect(page).toContain("findPhantomWalletAdapter(solanaWallet.wallets)");
+    expect(page).toContain("getOkxSolanaProvider()");
+    expect(page).toContain("Phantom not found; choose another Solana wallet");
+    expect(page).toContain("OKX Solana provider does not support signTransaction");
     expect(providers).toContain("autoConnect={false}");
     expect(page).toContain("Connecting Endless Web Wallet");
     expect(page).toContain("Using Endless Web Wallet SDK in this browser");
@@ -94,11 +104,12 @@ describe("frontend wallet menu", () => {
     expect(page).toContain("Endless ${chain.networkKind}");
     expect(page).toContain("reward 0.001 EDS to Alice with Endless Web Wallet on Endless ${chain.networkKind}");
     expect(page).toContain('const ALICE_ENDLESS_ADDRESS = "6XtEwYbTZ7PPNnFogtg6crSwXc8S8P53TqWEaSBassxw"');
-    expect(page).toContain("effectiveRecipientAddressForChain(selectedChain, recipientAddress, solanaAddress)");
+    expect(page).toContain("effectiveRecipientAddressForChain(selectedChain, recipientAddress, activeSolanaAddress)");
     expect(page).toContain("Using Alice's fixed Endless address for this real-chain reward validation.");
     expect(page).toContain("ENDLESS_TX_OPTIONS");
     expect(page).toContain("ENDLESS_WALLET_RESPONSE_TIMEOUT_MS");
     expect(page).toContain("Endless Web Wallet transaction confirmation timed out");
+    expect(page).toContain("Endless Web Wallet window failed to load. Check access to https://wallet.endless.link/wallet/ or use Luffa App QR.");
     expect(page).toContain("getAccountEDSAmount");
     expect(page).toContain("Insufficient Endless ${selectedChain.networkKind} EDS balance");
     expect(page).toContain("options,");

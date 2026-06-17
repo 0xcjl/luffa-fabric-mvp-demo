@@ -10,9 +10,60 @@ import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { WagmiProvider, createConfig, http, injected } from "wagmi";
 import { base, baseSepolia, bsc, bscTestnet, mainnet, polygonAmoy, sepolia } from "wagmi/chains";
+import type { EIP1193Provider } from "viem";
 
 const evmChains = [baseSepolia, bscTestnet, bsc, base, sepolia, polygonAmoy, mainnet] as const;
-const evmConnectors = [injected()];
+
+type BrowserWalletProvider = EIP1193Provider & {
+  isMetaMask?: true;
+  isOkxWallet?: true;
+  isOKExWallet?: true;
+  isRabby?: true;
+  isPhantom?: true;
+};
+
+type WalletWindow = Window &
+  typeof globalThis & {
+    ethereum?: BrowserWalletProvider & { providers?: BrowserWalletProvider[] };
+    okxwallet?: BrowserWalletProvider;
+    phantom?: { ethereum?: BrowserWalletProvider };
+  };
+
+function injectedProviders(window?: unknown): BrowserWalletProvider[] {
+  const walletWindow = window as WalletWindow | undefined;
+  const providers = walletWindow?.ethereum?.providers ?? [];
+  return [walletWindow?.okxwallet, walletWindow?.phantom?.ethereum, ...providers, walletWindow?.ethereum].filter(Boolean) as BrowserWalletProvider[];
+}
+
+function findInjectedProvider(window: unknown, predicate: (provider: BrowserWalletProvider) => boolean): BrowserWalletProvider | undefined {
+  return injectedProviders(window).find((provider) => predicate(provider));
+}
+
+const evmConnectors = [
+  injected({
+    target: () => ({
+      id: "okx",
+      name: "OKX Wallet",
+      provider: (window) => findInjectedProvider(window, (provider) => Boolean(provider.isOkxWallet || provider.isOKExWallet)),
+    }),
+  }),
+  injected({ target: "metaMask" }),
+  injected({
+    target: () => ({
+      id: "rabby",
+      name: "Rabby",
+      provider: (window) => findInjectedProvider(window, (provider) => Boolean(provider.isRabby)),
+    }),
+  }),
+  injected({ target: "phantom" }),
+  injected({
+    target: () => ({
+      id: "injected",
+      name: "Injected Wallet",
+      provider: (window) => (window as WalletWindow | undefined)?.ethereum,
+    }),
+  }),
+];
 
 const config = createConfig({
   chains: evmChains,
