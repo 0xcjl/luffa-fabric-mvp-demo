@@ -28,6 +28,10 @@ import {
 const API_BASE = process.env.NEXT_PUBLIC_LAEL_API_URL ?? "http://127.0.0.1:3000";
 const ALICE_ADDRESS = "0x0000000000000000000000000000000000000002";
 const ALICE_SOLANA_ADDRESS = "So11111111111111111111111111111111111111113";
+const SOLANA_SELF_TRANSFER_PLACEHOLDERS = new Set([
+  "So11111111111111111111111111111111111111112",
+  "So11111111111111111111111111111111111111113",
+]);
 const ALICE_ENDLESS_ADDRESS = "6XtEwYbTZ7PPNnFogtg6crSwXc8S8P53TqWEaSBassxw";
 const BASE_SEPOLIA_USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 const MAINNET_EXECUTION_ENV_VAR = "LAEL_ENABLE_MAINNET_EXECUTION";
@@ -653,6 +657,12 @@ export default function Page() {
     };
   }, [endlessQrSession]);
 
+  useEffect(() => {
+    if (selectedChain.chainKey !== "SOLANA_MAINNET" || !solanaAddress) return;
+    if (recipientAddress.trim() && !SOLANA_SELF_TRANSFER_PLACEHOLDERS.has(recipientAddress.trim())) return;
+    setRecipientAddress(solanaAddress);
+  }, [recipientAddress, selectedChain.chainKey, solanaAddress]);
+
   async function bindWallet() {
     if (selectedChain.chainType === "solana") {
       const connected = await ensureSolanaConnected();
@@ -726,9 +736,13 @@ export default function Page() {
     setFeedbackStatus("");
     const inputText = overrides.input ?? rawInput;
     const proposalWalletAddress = walletAddress || fallbackWalletAddress(selectedChain);
-    const defaultRecipientAddress = effectiveRecipientAddressForChain(selectedChain, recipientAddress);
+    const defaultRecipientAddress = effectiveRecipientAddressForChain(selectedChain, recipientAddress, solanaAddress);
     if (selectedChain.chainType === "endless" && defaultRecipientAddress !== recipientAddress.trim()) {
       setLog((items) => ["Using Alice's fixed Endless address for this real-chain reward validation.", ...items].slice(0, 12));
+    }
+    if (selectedChain.chainKey === "SOLANA_MAINNET" && solanaAddress && defaultRecipientAddress === solanaAddress && defaultRecipientAddress !== recipientAddress.trim()) {
+      setRecipientAddress(solanaAddress);
+      setLog((items) => ["Using connected Solana wallet as the mainnet self-transfer recipient for this small-value demo.", ...items].slice(0, 12));
     }
     const nextProposal = await callApi<Proposal>("/v2/payment-agent/proposals", {
       method: "POST",
@@ -761,7 +775,7 @@ export default function Page() {
       businessAction: "task_reward",
       max: selectedChain.chainType === "endless" ? "0.001" : maxAmount,
       allowedChain: selectedChain.chainKey,
-      recipients: [{ name: "Alice", address: effectiveRecipientAddressForChain(selectedChain, recipientAddress) }],
+      recipients: [{ name: "Alice", address: effectiveRecipientAddressForChain(selectedChain, recipientAddress, solanaAddress) }],
     });
   }
 
@@ -798,6 +812,10 @@ export default function Page() {
     if (selectedChain.chainType === "solana") {
       const connected = await ensureSolanaConnected();
       if (!connected || !solanaWallet.publicKey) return;
+      if (!solanaWallet.signTransaction) {
+        setLog((items) => ["Selected Solana wallet does not support explicit signTransaction; use Phantom or another Solana wallet with transaction signing.", ...items].slice(0, 12));
+        return;
+      }
       try {
         const rpcErrors: string[] = [];
         let rpcContext: { connection: Connection; endpoint: string; latestBlockhash: Awaited<ReturnType<Connection["getLatestBlockhash"]>> } | undefined;
@@ -816,34 +834,58 @@ export default function Page() {
           return;
         }
         const { connection, endpoint, latestBlockhash } = rpcContext;
+        const sender = solanaWallet.publicKey;
+        const recipientAddress = proposal.parsedIntent.recipientAddress.trim();
+        if (selectedChain.chainKey === "SOLANA_MAINNET" && SOLANA_SELF_TRANSFER_PLACEHOLDERS.has(recipientAddress)) {
+          setLog((items) =>
+            [
+              `Solana Mainnet proposal still uses placeholder recipient ${recipientAddress}. Regenerate the proposal after wallet connection so the demo uses a small self-transfer to ${sender.toBase58()}.`,
+              ...items,
+            ].slice(0, 12),
+          );
+          return;
+        }
+        const recipient = new PublicKey(recipientAddress);
         const lamports = Math.max(1, Math.round(proposal.parsedIntent.amount * LAMPORTS_PER_SOL));
         const transaction = new Transaction().add(
           SystemProgram.transfer({
-            fromPubkey: solanaWallet.publicKey,
-            toPubkey: new PublicKey(proposal.parsedIntent.recipientAddress),
+            fromPubkey: sender,
+            toPubkey: recipient,
             lamports,
           }),
         );
-        transaction.feePayer = solanaWallet.publicKey;
+        transaction.feePayer = sender;
         transaction.recentBlockhash = latestBlockhash.blockhash;
         const [balanceLamports, feeForMessage] = await Promise.all([
-          connection.getBalance(solanaWallet.publicKey, "confirmed"),
+          connection.getBalance(sender, "confirmed"),
           connection.getFeeForMessage(transaction.compileMessage(), "confirmed"),
         ]);
         const feeLamports = feeForMessage.value ?? SOLANA_FEE_FALLBACK_LAMPORTS;
         const requiredLamports = lamports + feeLamports;
         if (balanceLamports < requiredLamports) {
-          const balanceMessage = `Insufficient Solana ${selectedChain.networkKind} balance: sender=${solanaWallet.publicKey.toBase58()} balance=${formatSol(balanceLamports)} SOL required>=${formatSol(requiredLamports)} SOL amount=${formatSol(lamports)} SOL feeBudget=${formatSol(feeLamports)} SOL`;
+          const balanceMessage = `Insufficient Solana ${selectedChain.networkKind} balance: sender=${sender.toBase58()} balance=${formatSol(balanceLamports)} SOL required>=${formatSol(requiredLamports)} SOL amount=${formatSol(lamports)} SOL feeBudget=${formatSol(feeLamports)} SOL`;
           setLog((items) => [balanceMessage, ...items].slice(0, 12));
+          return;
+        }
+        const simulation = await connection.simulateTransaction(transaction);
+        if (simulation.value.err) {
+          setLog((items) => [`Solana preflight simulation failed before wallet signing: ${JSON.stringify(simulation.value.err)}`, ...items].slice(0, 12));
           return;
         }
         setLog((items) =>
           [
-            `Solana tx payload: endpoint=${endpoint} sender=${solanaWallet.publicKey?.toBase58()} recipient=${proposal.parsedIntent.recipientAddress} lamports=${lamports} balance=${formatSol(balanceLamports)} SOL estimatedFee=${formatSol(feeLamports)} SOL`,
+            `Solana signer check: connectedAddress=${sender.toBase58()} balance=${formatSol(balanceLamports)} SOL required=${formatSol(requiredLamports)} SOL`,
+            `Solana tx payload: endpoint=${endpoint} sender=${sender.toBase58()} recipient=${recipient.toBase58()} lamports=${lamports} estimatedFee=${formatSol(feeLamports)} SOL`,
             ...items,
           ].slice(0, 12),
         );
-        const signature = await solanaWallet.sendTransaction(transaction, connection);
+        const signedTransaction = await solanaWallet.signTransaction(transaction);
+        const signedBySender = signedTransaction.signatures.some((signature) => signature.publicKey.equals(sender) && signature.signature);
+        if (!signedBySender) {
+          setLog((items) => [`Solana wallet signed with a different account than the connected sender ${sender.toBase58()}; disconnect and reconnect Phantom with the funded account selected.`, ...items].slice(0, 12));
+          return;
+        }
+        const signature = await connection.sendRawTransaction(signedTransaction.serialize(), { skipPreflight: false });
         const confirmation = await connection.confirmTransaction({ signature, ...latestBlockhash }, "confirmed");
         if (confirmation.value.err) {
           setLog((items) => [`Solana transaction failed: ${JSON.stringify(confirmation.value.err)}`, ...items].slice(0, 12));
@@ -1054,7 +1096,7 @@ export default function Page() {
     const amount = isLogin ? 0 : currentProposal?.parsedIntent.amount ?? extractAmount(rawInput) ?? 1;
     const intent = isLogin ? "Connect Luffa App wallet to LAEL DID" : currentProposal?.rawInput ?? rawInput;
     const proposalRecipient = currentProposal?.parsedIntent.recipientAddress ?? recipientAddress;
-    const recipient = isLogin ? "" : effectiveRecipientAddressForChain(chain, proposalRecipient);
+    const recipient = isLogin ? "" : effectiveRecipientAddressForChain(chain, proposalRecipient, solanaAddress);
     if (!isLogin && chain.chainType === "endless" && !isEndlessRuntimeAddress(recipient)) {
       setEndlessStatus("A real Endless transaction requires a Luffa / Endless recipient address, not an EVM 0x address.");
       setLog((items) => ["Enter a real Luffa / Endless recipient address or use Alice's fixed Endless reward address.", ...items].slice(0, 12));
@@ -1406,7 +1448,7 @@ export default function Page() {
       setLog((items) => [mainnetBlock, ...items].slice(0, 12));
       return undefined;
     }
-    const recipient = effectiveRecipientAddressForChain(selectedChain, currentProposal.parsedIntent.recipientAddress);
+    const recipient = effectiveRecipientAddressForChain(selectedChain, currentProposal.parsedIntent.recipientAddress, solanaAddress);
     if (!isEndlessRuntimeAddress(recipient)) {
       setEndlessStatus("A real Endless transaction requires a Luffa / Endless recipient address, not an EVM 0x address.");
       setLog((items) => ["Enter a real Endless recipient address before signing with Endless Web Wallet", ...items].slice(0, 12));
@@ -2616,9 +2658,12 @@ function isEndlessRuntimeAddress(value: string | undefined): boolean {
   return normalized.length > 0 && !normalized.startsWith("0x");
 }
 
-function effectiveRecipientAddressForChain(chain: ChainOption, candidate: string): string {
-  if (chain.chainType !== "endless") return candidate.trim();
+function effectiveRecipientAddressForChain(chain: ChainOption, candidate: string, connectedSolanaAddress?: string): string {
   const normalizedCandidate = candidate.trim();
+  if (chain.chainKey === "SOLANA_MAINNET" && connectedSolanaAddress && SOLANA_SELF_TRANSFER_PLACEHOLDERS.has(normalizedCandidate)) {
+    return connectedSolanaAddress;
+  }
+  if (chain.chainType !== "endless") return normalizedCandidate;
   if (isEndlessRuntimeAddress(normalizedCandidate)) return normalizedCandidate;
   return chain.defaultRecipient;
 }

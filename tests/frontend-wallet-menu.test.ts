@@ -43,8 +43,15 @@ describe("frontend wallet menu", () => {
     expect(page).toContain("Using Endless Web Wallet SDK in this browser");
     expect(page).toContain("Prepare a 0.000001 SOL transfer proposal to Alice on Solana mainnet");
     expect(page).toContain("reward ${amount} SOL to Alice on Solana ${chain.networkKind}");
-    expect(page).toContain("connection.getBalance(solanaWallet.publicKey");
+    expect(page).toContain("connection.getBalance(sender");
     expect(page).toContain("connection.getFeeForMessage(transaction.compileMessage()");
+    expect(page).toContain("SOLANA_SELF_TRANSFER_PLACEHOLDERS");
+    expect(page).toContain("Using connected Solana wallet as the mainnet self-transfer recipient");
+    expect(page).toContain("proposal still uses placeholder recipient");
+    expect(page).toContain("solanaWallet.signTransaction");
+    expect(page).toContain("connection.sendRawTransaction");
+    expect(page).toContain("Solana signer check: connectedAddress=");
+    expect(page).toContain("signed with a different account than the connected sender");
     expect(page).toContain("Insufficient Solana ${selectedChain.networkKind} balance");
     expect(page).toContain("Solana tx payload: endpoint=");
     expect(page).toContain("SOLANA_FEE_FALLBACK_LAMPORTS");
@@ -85,7 +92,7 @@ describe("frontend wallet menu", () => {
     expect(page).toContain("Endless ${chain.networkKind}");
     expect(page).toContain("reward 0.001 EDS to Alice with Endless Web Wallet on Endless ${chain.networkKind}");
     expect(page).toContain('const ALICE_ENDLESS_ADDRESS = "6XtEwYbTZ7PPNnFogtg6crSwXc8S8P53TqWEaSBassxw"');
-    expect(page).toContain("effectiveRecipientAddressForChain(selectedChain, recipientAddress)");
+    expect(page).toContain("effectiveRecipientAddressForChain(selectedChain, recipientAddress, solanaAddress)");
     expect(page).toContain("Using Alice's fixed Endless address for this real-chain reward validation.");
     expect(page).toContain("ENDLESS_TX_OPTIONS");
     expect(page).toContain("ENDLESS_WALLET_RESPONSE_TIMEOUT_MS");
