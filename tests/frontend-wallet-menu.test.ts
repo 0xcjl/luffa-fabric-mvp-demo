@@ -17,6 +17,9 @@ describe("frontend wallet menu", () => {
     expect(providers).toContain('injected({ target: "phantom" })');
     expect(page).toContain('const EVM_CONNECTOR_PRIORITY = ["okx", "metaMask", "rabby", "phantom", "injected"]');
     expect(page).toContain("selectPreferredEvmConnector(connectors)");
+    expect(page).toContain("Disconnecting current EVM connector");
+    expect(page).toContain("Requesting EVM wallet connection with");
+    expect(page).toContain("Using existing OKX Wallet EVM connector");
     expect(page).not.toContain("WalletConnect");
     expect(page).not.toContain("Project ID");
     expect(envExample).not.toContain("WalletConnect");
@@ -39,6 +42,11 @@ describe("frontend wallet menu", () => {
     }
 
     expect(page).toContain("Mainnet real execution is gated; explicit env and user confirmation required.");
+    expect(page).toContain("const DEFAULT_MAINNET_MAX_AMOUNT_ETH = 0.001");
+    expect(page).toContain('const PUBLIC_DEMO_API_BASE = "https://luffa-fabric-mvp-api.onrender.com"');
+    expect(page).toContain("Runtime config fallback used: mainnet=true cap=0.001 callback=https://luffa-fabric-mvp-api.onrender.com");
+    expect(page).toContain("Loading runtime config before wallet signing.");
+    expect(page).toContain("Runtime config loaded from Render API");
   });
 
   it("handles Solana selection and Endless bridge absence without runtime overlay errors", () => {
@@ -60,6 +68,8 @@ describe("frontend wallet menu", () => {
     expect(page).toContain("proposal still uses placeholder recipient");
     expect(page).toContain("solanaWallet.signTransaction");
     expect(page).toContain("connection.sendRawTransaction");
+    expect(page).toContain("recordExecutionReceiptWithTxHash(signature, \"Solana\")");
+    expect(page).toContain("Solana transaction confirmed:");
     expect(page).toContain("Solana signer check: connectedAddress=");
     expect(page).toContain("signed with a different account than the connected sender");
     expect(page).toContain("Insufficient Solana ${selectedChain.networkKind} balance");
@@ -98,6 +108,13 @@ describe("frontend wallet menu", () => {
     expect(page).toContain("new TypeTagU128()");
     expect(page).toContain("signAndSubmitTransaction");
     expect(page).toContain("Endless Web Wallet submitted real tx");
+    expect(page).toContain("Endless stage: opening sdk");
+    expect(page).toContain("Endless stage: requesting account");
+    expect(page).toContain("Endless stage: checking balance");
+    expect(page).toContain("Endless stage: requesting transaction confirmation");
+    expect(page).toContain("Endless stage: waiting txHash");
+    expect(page).toContain("Endless stage: recording receipt");
+    expect(page).toContain("recordExecutionReceiptWithTxHash(hash, \"Endless Web Wallet\")");
     expect(page).toContain("endless-web-wallet");
     expect(page).toContain("Task Reward");
     expect(page).toContain("businessAction");

@@ -26,6 +26,7 @@ import {
   projectDocsStatus,
 } from "./project-docs-data";
 
+const PUBLIC_DEMO_API_BASE = "https://luffa-fabric-mvp-api.onrender.com";
 const API_BASE = process.env.NEXT_PUBLIC_LAEL_API_URL ?? "http://127.0.0.1:3000";
 const ALICE_ADDRESS = "0x0000000000000000000000000000000000000002";
 const ALICE_SOLANA_ADDRESS = "So11111111111111111111111111111111111111113";
@@ -36,7 +37,7 @@ const SOLANA_SELF_TRANSFER_PLACEHOLDERS = new Set([
 const ALICE_ENDLESS_ADDRESS = "6XtEwYbTZ7PPNnFogtg6crSwXc8S8P53TqWEaSBassxw";
 const BASE_SEPOLIA_USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 const MAINNET_EXECUTION_ENV_VAR = "LAEL_ENABLE_MAINNET_EXECUTION";
-const DEFAULT_MAINNET_MAX_AMOUNT_ETH = 0.00001;
+const DEFAULT_MAINNET_MAX_AMOUNT_ETH = 0.001;
 const ENDLESS_TX_OPTIONS = {
   maxGasAmount: 100,
   gasUnitPrice: 100,
@@ -215,15 +216,24 @@ type RuntimeConfig = {
   };
 };
 
+type RuntimeConfigStatus = "loading" | "loaded" | "failed" | "fallback";
+
+type RuntimeConfigState = {
+  status: RuntimeConfigStatus;
+  source: string;
+  message: string;
+  attempts: number;
+};
+
 const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = {
   mainnetExecutionEnabled: true,
   mainnetEnvVar: MAINNET_EXECUTION_ENV_VAR,
   mainnetMaxAmountEth: DEFAULT_MAINNET_MAX_AMOUNT_ETH,
   publicCallback: {
     envVar: "LAEL_PUBLIC_CALLBACK_BASE_URL",
-    baseUrl: null,
-    configured: false,
-    localOnly: true,
+    baseUrl: PUBLIC_DEMO_API_BASE,
+    configured: true,
+    localOnly: false,
     requirement: "Real Luffa App QR/WebView authorization requires a reachable HTTPS tunnel such as Cloudflare Tunnel; local-only callback is protocol/dev only.",
     restartRequired: true,
     oldQrInvalidAfterChange: true,
@@ -474,11 +484,11 @@ type EvidenceCard = {
 };
 
 export default function Page() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, connector } = useAccount();
   const chainId = useChainId();
   const { connectAsync, connectors, isPending: evmConnectPending } = useConnect();
-  const { disconnect } = useDisconnect();
-  const { switchChain, switchChainAsync } = useSwitchChain();
+  const { disconnect, disconnectAsync } = useDisconnect();
+  const { switchChainAsync } = useSwitchChain();
   const { signMessageAsync } = useSignMessage();
   const { sendTransactionAsync } = useSendTransaction();
   const solanaWallet = useSolanaWallet();
@@ -521,6 +531,12 @@ export default function Page() {
   const [endlessQrModalOpen, setEndlessQrModalOpen] = useState(false);
   const [okxSolanaAddress, setOkxSolanaAddress] = useState("");
   const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfig>(DEFAULT_RUNTIME_CONFIG);
+  const [runtimeConfigState, setRuntimeConfigState] = useState<RuntimeConfigState>({
+    status: "loading",
+    source: "initial",
+    message: "Loading runtime config from public API",
+    attempts: 0,
+  });
   const [mainnetRiskAccepted, setMainnetRiskAccepted] = useState(false);
 
   const selectedChain = CHAIN_OPTIONS.find((chain) => chain.chainKey === selectedChainKey) ?? CHAIN_OPTIONS[0];
@@ -540,6 +556,8 @@ export default function Page() {
       : walletAddress;
   const selectedToken = TOKEN_OPTIONS.find((token) => token.symbol === selectedTokenSymbol) ?? TOKEN_OPTIONS[0];
   const walletSummary = formatWalletSummary(selectedChain, walletAddress, selectedChain.chainType === "endless" ? endlessQrSession?.status : undefined);
+  const activeEvmConnectorName = selectedChain.chainType === "evm" ? connector?.name ?? (isConnected ? "Injected Wallet" : "Not connected") : "";
+  const activeEvmConnectorId = selectedChain.chainType === "evm" ? connector?.id ?? "" : "";
   const selectedLane = useMemo<ExecutionLane>(() => {
     if (activeTab === "runtime" || activeTab === "docs") return "offchain";
     if (activeTab === "evidence" && proofSettlement) return "fiat-proof";
@@ -609,25 +627,53 @@ export default function Page() {
 
   useEffect(() => {
     let active = true;
-    fetch(`${API_BASE}/v2/runtime-config`)
-      .then((response) => response.json())
-      .then((body: RuntimeConfig) => {
-        if (active) {
-          setRuntimeConfig({
-            ...DEFAULT_RUNTIME_CONFIG,
-            ...body,
-            publicCallback: {
-              ...DEFAULT_RUNTIME_CONFIG.publicCallback,
-              ...(body.publicCallback ?? {}),
-            },
+    const retryDelays = [0, 1000, 3000];
+    async function loadRuntimeConfig() {
+      let lastError = "";
+      for (let attempt = 0; attempt < retryDelays.length; attempt += 1) {
+        const delayMs = retryDelays[attempt];
+        if (delayMs > 0) await wait(delayMs);
+        if (!active) return;
+        setRuntimeConfigState({
+          status: "loading",
+          source: `${API_BASE}/v2/runtime-config`,
+          message: `Loading runtime config from public API (attempt ${attempt + 1}/${retryDelays.length})`,
+          attempts: attempt + 1,
+        });
+        try {
+          const response = await fetch(`${API_BASE}/v2/runtime-config?t=${Date.now()}`, { cache: "no-store" });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const body = (await response.json()) as RuntimeConfig;
+          const mergedConfig = mergeRuntimeConfig(body);
+          const validation = validateRuntimeConfig(mergedConfig);
+          if (!active) return;
+          setRuntimeConfig(mergedConfig);
+          setRuntimeConfigState({
+            status: validation.ok ? "loaded" : "failed",
+            source: `${API_BASE}/v2/runtime-config`,
+            message: validation.ok ? "Runtime config loaded from Render API" : validation.message,
+            attempts: attempt + 1,
           });
+          setLog((items) => [`Runtime config loaded: mainnet=${mergedConfig.mainnetExecutionEnabled} cap=${mergedConfig.mainnetMaxAmountEth} callback=${mergedConfig.publicCallback.baseUrl ?? "not configured"}`, ...items].slice(0, 12));
+          return;
+        } catch (error) {
+          lastError = messageFromError(error);
+          if (active) {
+            setLog((items) => [`Runtime config load attempt ${attempt + 1} failed: ${lastError}`, ...items].slice(0, 12));
+          }
         }
-      })
-      .catch(() => {
-        if (active) {
-          setLog((items) => ["Runtime config unavailable; using public demo mainnet execution default true with UI risk confirmation and amount caps still required", ...items].slice(0, 12));
-        }
+      }
+      if (!active) return;
+      setRuntimeConfig(DEFAULT_RUNTIME_CONFIG);
+      setRuntimeConfigState({
+        status: "fallback",
+        source: "public demo fallback",
+        message: `Runtime config fallback used after API failure: ${lastError || "unknown error"}`,
+        attempts: retryDelays.length,
       });
+      setLog((items) => ["Runtime config fallback used: mainnet=true cap=0.001 callback=https://luffa-fabric-mvp-api.onrender.com", ...items].slice(0, 12));
+    }
+    void loadRuntimeConfig();
     return () => {
       active = false;
     };
@@ -735,7 +781,11 @@ export default function Page() {
       return;
     }
 
-    if (!address) return;
+    if (!(await ensureSelectedEvmConnected(selectedChain))) return;
+    if (!address) {
+      setLog((items) => ["EVM wallet connected but address is not available yet; click Bind Wallet again after the wallet finishes connecting.", ...items].slice(0, 12));
+      return;
+    }
     const pending = await callApi<{ bindingId: string; nonce: string; message: string }>("/v2/wallet/connect", {
       method: "POST",
       body: JSON.stringify({
@@ -812,6 +862,9 @@ export default function Page() {
 
   function getMainnetExecutionBlock(amount?: number): string | undefined {
     if (selectedChain.networkKind !== "mainnet") return undefined;
+    if (runtimeConfigState.status === "loading") {
+      return "Loading runtime config before wallet signing.";
+    }
     if (!runtimeConfig.mainnetExecutionEnabled) {
       return `Mainnet execution available but gated. Set ${runtimeConfig.mainnetEnvVar || MAINNET_EXECUTION_ENV_VAR}=true for an explicit small-value mainnet test.`;
     }
@@ -828,7 +881,10 @@ export default function Page() {
     if (!proposal || proposal.permissionDecision.status === "blocked") return;
     if (selectedChain.chainType === "endless") {
       const hash = await signEndlessTransfer(proposal);
-      if (hash) setTxHash(hash);
+      if (hash) {
+        setTxHash(hash);
+        await recordExecutionReceiptWithTxHash(hash, "Endless Web Wallet");
+      }
       return;
     }
     const mainnetBlock = getMainnetExecutionBlock(proposal.parsedIntent.amount);
@@ -932,6 +988,8 @@ export default function Page() {
           return;
         }
         setTxHash(signature);
+        setLog((items) => [`Solana transaction confirmed: ${signature}`, ...items].slice(0, 12));
+        await recordExecutionReceiptWithTxHash(signature, "Solana");
       } catch (error) {
         setLog((items) => [`Solana transaction request failed: ${messageFromError(error)}`, ...items].slice(0, 12));
         return;
@@ -958,6 +1016,36 @@ export default function Page() {
             value: 0n,
           });
     setTxHash(hash);
+    setLog((items) => [`EVM transaction submitted: ${hash}`, ...items].slice(0, 12));
+    await recordExecutionReceiptWithTxHash(hash, "EVM");
+  }
+
+  async function recordExecutionReceiptWithTxHash(realTxHash: string, source: string): Promise<boolean> {
+    if (!proposal) return false;
+    if (!realTxHash || isMockTxHash(realTxHash)) {
+      setLog((items) => [`${source} did not return a real txHash; receipt recording blocked.`, ...items].slice(0, 12));
+      return false;
+    }
+    try {
+      setLog((items) => [`Recording receipt for ${source} txHash ${realTxHash}`, ...items].slice(0, 12));
+      const nextReceipt = await callApi<ExecutionReceipt>(`/v2/payment-agent/proposals/${proposal.proposalId}/execute`, {
+        method: "POST",
+        body: JSON.stringify({
+          humanConfirmed: true,
+          txHash: realTxHash,
+          walletType: walletTypeForChain(selectedChain, endlessAccountSource),
+          executionMode: executionModeForChain(selectedChain, realTxHash, endlessAccountSource),
+          appAuthorizationStatus: "approved",
+        }),
+      });
+      setReceipt(nextReceipt);
+      setFeedbackStatus("Feedback pending");
+      setLog((items) => [`Receipt recorded for ${source} txHash ${realTxHash}`, ...items].slice(0, 12));
+      return true;
+    } catch (error) {
+      setLog((items) => [`${source} txHash ${realTxHash} confirmed but receipt recording failed: ${messageFromError(error)}. You can click Approve & Record to retry.`, ...items].slice(0, 12));
+      return false;
+    }
   }
 
   async function executeProposal() {
@@ -1353,7 +1441,17 @@ export default function Page() {
   }
 
   async function ensureSelectedEvmConnected(chain: ChainOption = selectedChain): Promise<boolean> {
-    if (!isConnected) {
+    const currentConnectorId = connector?.id ?? "";
+    const shouldReconnectToPreferred = !isConnected || currentConnectorId !== "okx";
+    if (isConnected && currentConnectorId && currentConnectorId !== "okx") {
+      setLog((items) => [`Disconnecting current EVM connector ${connector?.name ?? currentConnectorId}; OKX Wallet is required as first choice for EVM lanes.`, ...items].slice(0, 12));
+      try {
+        await disconnectAsync({ connector });
+      } catch (error) {
+        setLog((items) => [`Failed to disconnect current EVM connector ${connector?.name ?? currentConnectorId}: ${messageFromError(error)}`, ...items].slice(0, 12));
+      }
+    }
+    if (shouldReconnectToPreferred) {
       const preferredConnector = selectPreferredEvmConnector(connectors);
       const orderedConnectors = orderedPreferredEvmConnectors(connectors);
       if (!preferredConnector || orderedConnectors.length === 0) {
@@ -1364,8 +1462,9 @@ export default function Page() {
       let connectedWith = "";
       for (const connector of orderedConnectors) {
         try {
+          setLog((items) => [`Requesting EVM wallet connection with ${connector.name}`, ...items].slice(0, 12));
           await connectAsync({ connector, chainId: chain.wagmiChainId ?? selectedEvmChainId });
-          connectedWith = connector.name;
+          connectedWith = `${connector.name} (${connector.id})`;
           break;
         } catch (error) {
           failures.push(`${connector.name}: ${messageFromError(error)}`);
@@ -1376,6 +1475,8 @@ export default function Page() {
         return false;
       }
       setLog((items) => [`Connected EVM wallet with ${connectedWith}`, ...items].slice(0, 12));
+    } else {
+      setLog((items) => [`Using existing OKX Wallet EVM connector for ${chain.label}`, ...items].slice(0, 12));
     }
     if (chain.wagmiChainId && chainId !== chain.wagmiChainId) {
       try {
@@ -1555,8 +1656,8 @@ export default function Page() {
       return undefined;
     }
     try {
-      setEndlessStatus("Requesting Endless Web Wallet transaction signature");
-      setLog((items) => ["Signing real Endless transaction with Endless Web Wallet SDK", ...items].slice(0, 12));
+      setEndlessStatus("Opening Endless Web Wallet SDK");
+      setLog((items) => ["Endless stage: opening sdk", ...items].slice(0, 12));
       const [{ EndlessJsSdk, UserResponseStatus }, { AccountAddress, Endless, EndlessConfig, Network, TypeTagAddress, TypeTagU128 }] = await Promise.all([
         import("@endlesslab/endless-web3-sdk"),
         import("@endlesslab/endless-ts-sdk"),
@@ -1572,6 +1673,8 @@ export default function Page() {
         setLog((items) => [message, ...items].slice(0, 12));
         void createEndlessQrSession(selectedChain, currentProposal);
       }, 3000);
+      setEndlessStatus("Requesting Endless Web Wallet account");
+      setLog((items) => ["Endless stage: requesting account", ...items].slice(0, 12));
       const accountResult = await withTimeout(
         endlessAccount ? sdk.getAccount() : sdk.connect(),
         ENDLESS_WALLET_RESPONSE_TIMEOUT_MS,
@@ -1599,6 +1702,8 @@ export default function Page() {
         setLog((items) => ["Endless Web Wallet account response missing sender address", ...items].slice(0, 12));
         return undefined;
       }
+      setEndlessStatus("Checking Endless EDS balance");
+      setLog((items) => ["Endless stage: checking balance", ...items].slice(0, 12));
       const balance = await new Endless(new EndlessConfig({ network })).getAccountEDSAmount({ accountAddress: AccountAddress.fromBs58String(senderAddress) });
       const feeBudget = (options.maxGasAmount * options.gasUnitPrice) / ENDLESS_BASE_UNITS_PER_EDS;
       const minimumRequired = currentProposal.parsedIntent.amount + feeBudget;
@@ -1612,6 +1717,7 @@ export default function Page() {
       setLog((items) =>
         [
           `Endless tx payload: sender=${senderAddress} recipient=${recipient} amountUnits=${amountUnits.toString()} balance=${balance} EDS options=${JSON.stringify(options)}`,
+          "Endless stage: requesting transaction confirmation",
           ...items,
         ].slice(0, 12),
       );
@@ -1638,6 +1744,8 @@ export default function Page() {
         setLog((items) => [`Endless Web Wallet transaction rejected: ${JSON.stringify(normalizeRejectedResponse(response))}`, ...items].slice(0, 12));
         return undefined;
       }
+      setEndlessStatus("Waiting for Endless Web Wallet txHash");
+      setLog((items) => ["Endless stage: waiting txHash", ...items].slice(0, 12));
       const hash = normalizeEndlessHash(response.args);
       if (!hash) {
         setEndlessStatus("Endless Web Wallet submitted no txHash");
@@ -1646,7 +1754,8 @@ export default function Page() {
       }
       setEndlessAuthStatus("approved");
       setEndlessAccountSource("endless_web_wallet");
-      setEndlessStatus("Endless Web Wallet submitted real tx");
+      setEndlessStatus("Endless Web Wallet submitted real tx; recording receipt");
+      setLog((items) => ["Endless stage: recording receipt", ...items].slice(0, 12));
       return hash;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Endless Web Wallet transaction failed";
@@ -1884,9 +1993,12 @@ export default function Page() {
             activeOnSelectedEvmChain={activeOnSelectedEvmChain}
             chainId={chainId}
             runtimeConfig={runtimeConfig}
+            runtimeConfigState={runtimeConfigState}
+            activeEvmConnectorName={activeEvmConnectorName}
+            activeEvmConnectorId={activeEvmConnectorId}
             mainnetRiskAccepted={mainnetRiskAccepted}
             setMainnetRiskAccepted={setMainnetRiskAccepted}
-            switchToSelectedEvmChain={() => switchChain({ chainId: selectedEvmChainId })}
+            switchToSelectedEvmChain={() => void ensureSelectedEvmConnected(selectedChain)}
             addBnbTestnetToWallet={addBnbTestnetToWallet}
             bindWallet={bindWallet}
             useSecondPrompt={useSecondPrompt}
@@ -2210,6 +2322,9 @@ function OnchainPanel(props: {
   activeOnSelectedEvmChain: boolean;
   chainId: number;
   runtimeConfig: RuntimeConfig;
+  runtimeConfigState: RuntimeConfigState;
+  activeEvmConnectorName: string;
+  activeEvmConnectorId: string;
   mainnetRiskAccepted: boolean;
   setMainnetRiskAccepted: (value: boolean) => void;
   switchToSelectedEvmChain: () => void;
@@ -2247,7 +2362,9 @@ function OnchainPanel(props: {
         : props.isConnected;
   const isEndlessLane = props.selectedChain.chainType === "endless";
   const mainnetSignBlock =
-    props.selectedChain.networkKind === "mainnet" && props.runtimeConfig.mainnetExecutionEnabled && !props.mainnetRiskAccepted
+    props.selectedChain.networkKind === "mainnet" && props.runtimeConfigState.status === "loading"
+      ? "Loading runtime config before wallet signing."
+      : props.selectedChain.networkKind === "mainnet" && props.runtimeConfig.mainnetExecutionEnabled && !props.mainnetRiskAccepted
       ? "Mainnet risk confirmation required before wallet signing."
       : props.selectedChain.networkKind === "mainnet" && !props.runtimeConfig.mainnetExecutionEnabled
         ? `Set ${props.runtimeConfig.mainnetEnvVar || MAINNET_EXECUTION_ENV_VAR}=true before wallet signing.`
@@ -2320,9 +2437,12 @@ function OnchainPanel(props: {
         <dl className="grid gap-2 text-sm">
           <KeyValue label="Wallet runtime" value={props.selectedChain.walletRuntime} />
           <KeyValue label="Wallet" value={props.selectedChain.chainType === "solana" ? props.solanaAddress ?? "Not connected" : props.selectedChain.chainType === "endless" ? props.endlessAccount || "Not connected" : props.address ?? "Not connected"} />
+          {props.selectedChain.chainType === "evm" ? <KeyValue label="EVM connector" value={`${props.activeEvmConnectorName}${props.activeEvmConnectorId ? ` (${props.activeEvmConnectorId})` : ""}`} /> : null}
           <KeyValue label="Network" value={props.selectedChain.chainType === "evm" ? (props.activeOnSelectedEvmChain ? props.selectedChain.label : String(props.chainId || "Unknown")) : props.selectedChain.label} />
           {props.selectedChain.chainType === "endless" ? <KeyValue label="Endless source" value={props.endlessAccountSource || "not selected"} /> : null}
           {props.selectedChain.chainType === "endless" ? <KeyValue label="Endless auth" value={props.endlessStatus} /> : null}
+          <KeyValue label="Runtime config" value={`${props.runtimeConfigState.status}: ${props.runtimeConfigState.message}`} />
+          <KeyValue label="Config source" value={props.runtimeConfigState.source} />
           <KeyValue label="Agent score" value={props.memory?.agentScore.toFixed(2) ?? "0.50"} />
           <KeyValue label="Daily limit" value={`${props.dailyLimit} ${props.selectedToken.symbol}`} />
         </dl>
@@ -2769,6 +2889,31 @@ function buildEvidenceCards(input: {
     });
   }
   return cards;
+}
+
+function mergeRuntimeConfig(body: Partial<RuntimeConfig>): RuntimeConfig {
+  return {
+    ...DEFAULT_RUNTIME_CONFIG,
+    ...body,
+    mainnetMaxAmountEth: Number(body.mainnetMaxAmountEth ?? DEFAULT_RUNTIME_CONFIG.mainnetMaxAmountEth),
+    publicCallback: {
+      ...DEFAULT_RUNTIME_CONFIG.publicCallback,
+      ...(body.publicCallback ?? {}),
+    },
+  };
+}
+
+function validateRuntimeConfig(config: RuntimeConfig): { ok: boolean; message: string } {
+  const callbackBase = config.publicCallback.baseUrl ?? "";
+  if (!config.mainnetExecutionEnabled) return { ok: false, message: "Runtime config invalid: mainnetExecutionEnabled must be true for the public demo." };
+  if (config.mainnetMaxAmountEth < 0.001) return { ok: false, message: `Runtime config invalid: mainnetMaxAmountEth ${config.mainnetMaxAmountEth} is below 0.001.` };
+  if (callbackBase !== PUBLIC_DEMO_API_BASE) return { ok: false, message: `Runtime config invalid: public callback must be ${PUBLIC_DEMO_API_BASE}.` };
+  if (config.publicCallback.localOnly) return { ok: false, message: "Runtime config invalid: public callback cannot be local-only for the public demo." };
+  return { ok: true, message: "Runtime config loaded from Render API" };
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 type EvmConnectorCandidate = {
