@@ -119,7 +119,7 @@ export async function registerRoutes(app: FastifyInstance, lael: LAEL): Promise<
   }));
 
   app.get("/v2/runtime-config", async () => ({
-    mainnetExecutionEnabled: process.env.LAEL_ENABLE_MAINNET_EXECUTION === "true",
+    mainnetExecutionEnabled: process.env.LAEL_ENABLE_MAINNET_EXECUTION !== "false",
     mainnetEnvVar: "LAEL_ENABLE_MAINNET_EXECUTION",
     mainnetMaxAmountEth: Number(process.env.LAEL_MAINNET_MAX_AMOUNT_ETH ?? 0.00001),
     publicCallback: publicCallbackRuntimeConfig(),

@@ -74,7 +74,7 @@ LAEL / Luffa Fabric 是统一 Agent Runtime Fabric，包含 Off-chain Runtime、
 协作规则：
 - 不要直接推 upstream。
 - 新需求、测试报告、系统说明必须同步更新 docs/README、docs/LAEL_DOCS_TIMELINE_v0.3.zh.md、docs/LAEL_PROJECT_ITERATION_HISTORY_2026-06-02.zh.md、NEXT_SESSION_HANDOFF.md 和前端 Project Docs。
-- 主网真实价值执行默认禁用。
+- 当前公网 demo 主网 env gate 默认打开：`LAEL_ENABLE_MAINNET_EXECUTION=true`。
 - WalletConnect / Project ID 当前不作为 MVP 能力展示。
 - Microsoft AGT 是 Governance Extension 的可选积木，不替代 Luffa DID、wallet signing、settlement、receipt 或 learning。
 
@@ -117,7 +117,7 @@ LAEL / Luffa Fabric 是统一 Agent Runtime Fabric，包含 Off-chain Runtime、
 - 多链钱包：Base、BNB、Solana、Endless 的主网和测试网展示。
 - 钱包入口：MetaMask / OKX Wallet、Phantom / Solana Wallet、Endless Web Wallet、Luffa App / Endless SDK。
 - Base Sepolia acceptance：作为默认真实链上手工验收主线，前端 Manual Tests 展示 txHash、explorer link、receipt、feedback、learning 路径。
-- Base Mainnet guard：默认禁用真实价值执行；需要 `LAEL_ENABLE_MAINNET_EXECUTION=true`、页面 `mainnetRiskAccepted` 和 `LAEL_MAINNET_MAX_AMOUNT_ETH` 金额上限。
+- Base / BNB / Solana / Endless Mainnet guard：当前公网 demo 默认 `LAEL_ENABLE_MAINNET_EXECUTION=true`；真实执行仍需要页面 `mainnetRiskAccepted`、`LAEL_MAINNET_MAX_AMOUNT_ETH` 金额上限、人工钱包确认和真实 txHash。
 - Endless QR / WebView authorization：支持 `luffa-endless-auth:v1` browser session、signed QR payload、callback、polling、authorization receipt；真实 App callback 必须带 `publicKey/fullMessage/signature` 并通过验签。P0 原生协议验收继续保留在 Luffa App QR。
 - Endless Web Wallet execution：为避免 Luffa App WebView bridge 在 `packageTransactionV2` / `signAndSubmitTransaction` payload 上反复返回空 `rawData`、`1006/1009` 或 `GeneralError.invalidParameter`，P1/P2 的真实 Endless 链上 txHash 优先走官方 `@endlesslab/endless-web3-sdk`；交易 payload 使用 `AccountAddress.fromBs58String`、`u128` 金额和 ABI type tags。
 - Task Reward business flow：支持 `businessAction=task_reward` proposal、wallet / Endless Web Wallet / Luffa App authorization、settlement receipt、feedback 和 learning signal。
@@ -130,7 +130,7 @@ LAEL / Luffa Fabric 是统一 Agent Runtime Fabric，包含 Off-chain Runtime、
 
 ## 安全边界
 
-- 主网真实价值执行默认禁用；Base Mainnet 小额实测必须同时满足 env gate、页面二次确认和金额上限。
+- 主网真实价值执行 env gate 当前默认打开；小额实测仍必须同时满足页面二次确认、金额上限、人工钱包确认和真实 txHash。
 - 主网 receipt 记录必须带真实钱包 txHash；后端 `/v2/payment-agent/proposals/:id/execute` 和前端 `Approve & Record` 都会拒绝主网空 txHash 或 `mock_` txHash，避免把 mock / signed-only 状态误标为真实链上完成。
 - WalletConnect / Project ID 当前不作为 MVP 能力展示。
 - Microsoft AGT 不替代 Luffa DID、wallet signing、settlement、receipt 或 learning。

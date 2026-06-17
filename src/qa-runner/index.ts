@@ -56,7 +56,7 @@ export function getQaChecks(cwd: string): QaCheckDefinition[] {
   const frontendUrl = process.env.LAEL_FRONTEND_URL ?? "http://127.0.0.1:3001";
   const testEnv = {
     LAEL_SETTLEMENT_MODE: "mock",
-    LAEL_ENABLE_MAINNET_EXECUTION: "false",
+    LAEL_ENABLE_MAINNET_EXECUTION: "true",
     LAEL_PUBLIC_CALLBACK_BASE_URL: "",
   };
   return [

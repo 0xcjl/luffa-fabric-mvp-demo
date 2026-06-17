@@ -216,7 +216,7 @@ type RuntimeConfig = {
 };
 
 const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = {
-  mainnetExecutionEnabled: false,
+  mainnetExecutionEnabled: true,
   mainnetEnvVar: MAINNET_EXECUTION_ENV_VAR,
   mainnetMaxAmountEth: DEFAULT_MAINNET_MAX_AMOUNT_ETH,
   publicCallback: {
@@ -625,7 +625,7 @@ export default function Page() {
       })
       .catch(() => {
         if (active) {
-          setLog((items) => ["Runtime config unavailable; mainnet execution remains disabled", ...items].slice(0, 12));
+          setLog((items) => ["Runtime config unavailable; using public demo mainnet execution default true with UI risk confirmation and amount caps still required", ...items].slice(0, 12));
         }
       });
     return () => {

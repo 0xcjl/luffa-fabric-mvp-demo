@@ -80,7 +80,7 @@ describe("local QA runner", () => {
         if (check.id === "root-vitest") {
           expect(check.env).toMatchObject({
             LAEL_SETTLEMENT_MODE: "mock",
-            LAEL_ENABLE_MAINNET_EXECUTION: "false",
+            LAEL_ENABLE_MAINNET_EXECUTION: "true",
             LAEL_PUBLIC_CALLBACK_BASE_URL: "",
           });
         }
