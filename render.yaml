@@ -14,7 +14,7 @@ services:
       - key: ENABLE_LAEL_QA_RUNNER
         value: "false"
       - key: LAEL_ENABLE_MAINNET_EXECUTION
-        value: "false"
+        value: "true"
       - key: LAEL_MAINNET_MAX_AMOUNT_ETH
         value: "0.001"
       - key: LAEL_PUBLIC_CALLBACK_BASE_URL

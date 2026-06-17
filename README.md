@@ -27,7 +27,7 @@ Demo boundaries:
 - The public demo does not use local Cloudflare Tunnel.
 - QR `/scan` and `/callback` URLs must use the Render API domain.
 - QA Runner is localhost-only and disabled in public production.
-- Mainnet execution can be enabled only for controlled small-value testing with env gate, UI risk confirmation, amount cap, wallet confirmation, and real txHash.
+- Mainnet execution is enabled for controlled small-value testing, but still requires UI risk confirmation, amount cap, wallet confirmation, and real txHash.
 - `mock_` txHash or signed-only authorization must never be described as real chain completion.
 
 Quick local check:

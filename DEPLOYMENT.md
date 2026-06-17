@@ -20,7 +20,7 @@ LAEL_HOST=0.0.0.0
 LAEL_PUBLIC_CALLBACK_BASE_URL=https://<render-api-url>
 LAEL_FRONTEND_URL=https://<vercel-frontend-url>
 ENABLE_LAEL_QA_RUNNER=false
-LAEL_ENABLE_MAINNET_EXECUTION=false
+LAEL_ENABLE_MAINNET_EXECUTION=true
 LAEL_MAINNET_MAX_AMOUNT_ETH=0.001
 ```
 
@@ -88,7 +88,7 @@ https://<render-api-url>/v2/endless/qr-sessions/<sessionId>/callback
 
 ## Mainnet Gate
 
-The public demo can be configured for controlled mainnet testing, but it must keep all runtime gates:
+The public demo defaults the environment gate to controlled mainnet testing, but it must keep all runtime gates:
 
 - `LAEL_ENABLE_MAINNET_EXECUTION=true`
 - page-level risk checkbox
