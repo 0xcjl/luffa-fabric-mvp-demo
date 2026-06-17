@@ -2447,6 +2447,8 @@ function BranchCard({ active, title, steps }: { active: boolean; title: string; 
 }
 
 function AutomatedTestsPanel({ qaRun, qaRunning, qaError, runAutomatedChecks }: { qaRun: QaRun | null; qaRunning: boolean; qaError: string; runAutomatedChecks: () => void }) {
+  const localQaCommand = "cd /Users/xyz/Documents/luffa-fabric-mvp-demo && ENABLE_LAEL_QA_RUNNER=true npm run start:local";
+  const qaDisabled = qaError.includes("Local QA runner is disabled");
   const items = qaRun?.items ?? [
     "Root typecheck",
     "Root vitest",
@@ -2464,7 +2466,22 @@ function AutomatedTestsPanel({ qaRun, qaRunning, qaError, runAutomatedChecks }: 
           {qaRunning ? "Running..." : "Run Full Automated Checks"}
         </button>
       </div>
-      {qaError ? <div className="rounded-md border border-alert bg-red-50 p-3 text-sm font-black text-alert">{qaError}</div> : null}
+      {qaError ? (
+        <div className="grid gap-2 rounded-md border border-alert bg-red-50 p-3 text-sm text-alert">
+          <div className="font-black">{qaError}</div>
+          {qaDisabled ? (
+            <div className="grid gap-2 text-xs text-slate-700">
+              <div>Public demo keeps this off. For local verification, start the API locally with QA enabled, then open the local frontend.</div>
+              <div className="flex flex-wrap items-center gap-2">
+                <code className="rounded border border-grid bg-white px-2 py-1 text-[11px] text-ink">{localQaCommand}</code>
+                <button className="rounded-md border border-grid bg-white px-3 py-1 font-black text-ink" onClick={() => void navigator.clipboard?.writeText(localQaCommand)}>
+                  Copy local enable command
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       <div className="grid gap-2">
         {items.map((item) => (
           <div key={item.id} className="rounded-md border border-grid bg-white p-3">

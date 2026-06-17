@@ -18,7 +18,7 @@ describe("local QA runner", () => {
     expect(response.statusCode).toBe(403);
     expect(response.json()).toMatchObject({
       status: "disabled",
-      message: "Local QA runner is disabled",
+      message: "Local QA runner is disabled on this API. Public demo deployments keep it off for safety; run the local API with ENABLE_LAEL_QA_RUNNER=true or npm run start:local to use full automated checks.",
     });
 
     await app.close();
@@ -71,7 +71,8 @@ describe("local QA runner", () => {
     };
 
     expect(frontendPackage.scripts.dev).toContain("NEXT_DIST_DIR=.next-live");
-    expect(frontendPackage.scripts.build).toContain("NEXT_DIST_DIR=.next-build");
+    expect(frontendPackage.scripts.build).toBe("next build");
+    expect(frontendPackage.scripts["build:local"]).toContain("NEXT_DIST_DIR=.next-build");
 
     const run = await runQaChecks({
       cwd: process.cwd(),

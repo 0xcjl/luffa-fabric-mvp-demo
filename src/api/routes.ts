@@ -367,7 +367,7 @@ export async function registerRoutes(app: FastifyInstance, lael: LAEL): Promise<
     if (!qaRunnerEnabled()) {
       return reply.code(403).send({
         status: "disabled",
-        message: "Local QA runner is disabled",
+        message: "Local QA runner is disabled on this API. Public demo deployments keep it off for safety; run the local API with ENABLE_LAEL_QA_RUNNER=true or npm run start:local to use full automated checks.",
       });
     }
     if (!isLocalQaRequest(request)) {

@@ -59,6 +59,8 @@ describe("frontend wallet menu", () => {
     expect(page).toContain("solanaEndpointsForChain");
     expect(page).toContain("Solana RPC unavailable for ${selectedChain.label}");
     expect(page).toContain("Solana transaction request failed");
+    expect(page).toContain("Copy local enable command");
+    expect(page).toContain("Public demo keeps this off");
   });
 
   it("exposes Base mainnet guard and repeatable on-chain manual tests", () => {
