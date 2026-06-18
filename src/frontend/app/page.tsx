@@ -537,6 +537,7 @@ export default function Page() {
     message: "Loading runtime config from public API",
     attempts: 0,
   });
+  const [apiWakeRunning, setApiWakeRunning] = useState(false);
   const [mainnetRiskAccepted, setMainnetRiskAccepted] = useState(false);
 
   const selectedChain = CHAIN_OPTIONS.find((chain) => chain.chainKey === selectedChainKey) ?? CHAIN_OPTIONS[0];
@@ -625,19 +626,18 @@ export default function Page() {
     return body;
   }
 
-  useEffect(() => {
-    let active = true;
+  async function refreshRuntimeConfig(trigger: "startup" | "manual" = "manual") {
     const retryDelays = [0, 1000, 3000];
-    async function loadRuntimeConfig() {
-      let lastError = "";
+    let lastError = "";
+    if (trigger === "manual") setApiWakeRunning(true);
+    try {
       for (let attempt = 0; attempt < retryDelays.length; attempt += 1) {
         const delayMs = retryDelays[attempt];
         if (delayMs > 0) await wait(delayMs);
-        if (!active) return;
         setRuntimeConfigState({
           status: "loading",
           source: `${API_BASE}/v2/runtime-config`,
-          message: `Loading runtime config from public API (attempt ${attempt + 1}/${retryDelays.length})`,
+          message: `${trigger === "manual" ? "Checking / waking" : "Loading"} runtime config from public API (attempt ${attempt + 1}/${retryDelays.length})`,
           attempts: attempt + 1,
         });
         try {
@@ -646,7 +646,6 @@ export default function Page() {
           const body = (await response.json()) as RuntimeConfig;
           const mergedConfig = mergeRuntimeConfig(body);
           const validation = validateRuntimeConfig(mergedConfig);
-          if (!active) return;
           setRuntimeConfig(mergedConfig);
           setRuntimeConfigState({
             status: validation.ok ? "loaded" : "failed",
@@ -658,12 +657,9 @@ export default function Page() {
           return;
         } catch (error) {
           lastError = messageFromError(error);
-          if (active) {
-            setLog((items) => [`Runtime config load attempt ${attempt + 1} failed: ${lastError}`, ...items].slice(0, 12));
-          }
+          setLog((items) => [`Runtime config load attempt ${attempt + 1} failed: ${lastError}`, ...items].slice(0, 12));
         }
       }
-      if (!active) return;
       setRuntimeConfig(DEFAULT_RUNTIME_CONFIG);
       setRuntimeConfigState({
         status: "fallback",
@@ -672,11 +668,13 @@ export default function Page() {
         attempts: retryDelays.length,
       });
       setLog((items) => ["Runtime config fallback used: mainnet=true cap=0.001 callback=https://luffa-fabric-mvp-api.onrender.com", ...items].slice(0, 12));
+    } finally {
+      if (trigger === "manual") setApiWakeRunning(false);
     }
-    void loadRuntimeConfig();
-    return () => {
-      active = false;
-    };
+  }
+
+  useEffect(() => {
+    void refreshRuntimeConfig("startup");
   }, []);
 
   useEffect(() => {
@@ -1906,6 +1904,9 @@ export default function Page() {
           </div>
           <div className="relative flex flex-wrap items-center gap-3">
             <StatusBadge status={qaRunning ? "running" : mapPrimaryStatus(primaryStatus)} label={primaryStatus} />
+            <button className="rounded-md border border-grid bg-white px-3 py-2 text-xs font-black text-ink shadow-sm disabled:opacity-50" disabled={apiWakeRunning} onClick={() => void refreshRuntimeConfig("manual")}>
+              {apiWakeRunning ? "Checking API..." : "Check / Wake API"}
+            </button>
             <button className="rounded-md border border-grid bg-white px-3 py-2 text-xs font-black text-ink shadow-sm" onClick={() => setWalletMenuOpen((open) => !open)}>
               {walletSummary}
             </button>

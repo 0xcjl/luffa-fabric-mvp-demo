@@ -47,6 +47,8 @@ describe("frontend wallet menu", () => {
     expect(page).toContain("Runtime config fallback used: mainnet=true cap=0.001 callback=https://luffa-fabric-mvp-api.onrender.com");
     expect(page).toContain("Loading runtime config before wallet signing.");
     expect(page).toContain("Runtime config loaded from Render API");
+    expect(page).toContain("Check / Wake API");
+    expect(page).toContain('refreshRuntimeConfig("manual")');
   });
 
   it("handles Solana selection and Endless bridge absence without runtime overlay errors", () => {
