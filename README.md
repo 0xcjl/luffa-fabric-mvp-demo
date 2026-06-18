@@ -188,6 +188,25 @@ The public callback base URL should be:
 https://luffa-fabric-mvp-api.onrender.com
 ```
 
+## Public Access Troubleshooting
+
+If Chrome shows `ERR_TUNNEL_CONNECTION_FAILED` while the demo was recently healthy, first separate a local proxy/TUN issue from a deployment issue:
+
+```bash
+curl -I https://luffa-fabric-mvp-demo.vercel.app/
+curl -sS https://luffa-fabric-mvp-api.onrender.com/v2/runtime-config
+dscacheutil -q host -a name luffa-fabric-mvp-demo.vercel.app
+scutil --proxy
+```
+
+Expected service state:
+
+- Vercel frontend returns `200`.
+- Render runtime config returns `mainnetExecutionEnabled:true` and `mainnetMaxAmountEth:0.001`.
+- Public callback is `https://luffa-fabric-mvp-api.onrender.com`.
+
+If service checks pass but Chrome still fails, the usual cause is the local proxy/TUN resolving the Vercel host to a `198.18.0.0/15` virtual address. Refresh the tab, reconnect the proxy/TUN, or wait for the local tunnel to recover. Do not treat this as an application deployment failure unless the curl checks also fail.
+
 ## Local Run
 
 Root API:

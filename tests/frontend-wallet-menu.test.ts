@@ -126,7 +126,8 @@ describe("frontend wallet menu", () => {
     expect(page).toContain("ENDLESS_TX_OPTIONS");
     expect(page).toContain("ENDLESS_WALLET_RESPONSE_TIMEOUT_MS");
     expect(page).toContain("Endless Web Wallet transaction confirmation timed out");
-    expect(page).toContain("Endless Web Wallet window failed to load. Check access to https://wallet.endless.link/wallet/ or use Luffa App QR.");
+    expect(page).toContain("Endless Web Wallet window failed to load. Check access to https://wallet.endless.link/wallet/ or use Luffa App QR. Retry available.");
+    expect(page).toContain("Endless stage: window loaded");
     expect(page).toContain("getAccountEDSAmount");
     expect(page).toContain("Insufficient Endless ${selectedChain.networkKind} EDS balance");
     expect(page).toContain("options,");
@@ -178,6 +179,12 @@ describe("frontend wallet menu", () => {
     expect(page).toContain("Submitting Feedback");
     expect(page).toContain("feedbackSubmitting");
     expect(page).toContain("approved without txHash");
+    expect(page).toContain("Transaction signed and receipt recorded");
+    expect(page).toContain("Retry Record available");
+    expect(page).toContain("Existing receipt is stale; retry with txHash");
+    expect(page).toContain("Retry Record");
+    expect(page).toContain("Recorded");
+    expect(page).toContain("receiptHasTxHash");
     expect(page).toContain("human confirmation preserved");
   });
 

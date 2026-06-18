@@ -17,6 +17,17 @@ Expected:
 - `runtime-config.publicCallback.baseUrl` is the Render API URL.
 - Frontend is styled and does not show `Application error`.
 
+If Chrome shows `ERR_TUNNEL_CONNECTION_FAILED`, verify the public services before debugging the app:
+
+```bash
+curl -I https://luffa-fabric-mvp-demo.vercel.app/
+curl -sS https://luffa-fabric-mvp-api.onrender.com/v2/runtime-config
+dscacheutil -q host -a name luffa-fabric-mvp-demo.vercel.app
+scutil --proxy
+```
+
+If curl returns 200 but Chrome still fails, classify it as local proxy/TUN instability. A `198.18.0.0/15` DNS result is a local virtual tunnel address; refresh Chrome or reconnect the proxy/TUN instead of redeploying.
+
 ## Proposal Smoke
 
 In the Vercel app:
@@ -60,6 +71,14 @@ Expected:
 - Modal is visible and closable.
 - Account / transaction request times out after 30 seconds if no wallet response returns.
 - Real completion requires a real txHash.
+- If `wallet.endless.link` loads blank or fails, the page shows `Retry available` and creates a Luffa App QR fallback.
+
+### Receipt Recording
+
+- After `Sign Wallet Tx` or `Sign Endless Web Wallet Tx` returns a real txHash, the app records the receipt automatically.
+- When the receipt matches the real txHash, `Approve & Record` changes to `Recorded`.
+- If recording fails after the wallet already returned a txHash, the button changes to `Retry Record`.
+- A stale denied/no-txHash receipt must be retried with the current txHash before it can count as real chain completion.
 
 ### Solana Mainnet
 
@@ -77,5 +96,6 @@ Expected:
 - `mock_` txHash: protocol or local mock only, not real chain completion.
 - signed authorization without txHash: App authorization only, not real chain completion.
 - Cloudflare 1033 / 530: local tunnel problem, not used by public demo.
+- `ERR_TUNNEL_CONNECTION_FAILED` with curl 200: local Chrome proxy/TUN problem, not a Vercel deployment failure.
 - Render service sleep / restart: generate a fresh QR.
 - Wallet popup rejected: user cancellation, not app failure.

@@ -232,6 +232,10 @@ export class PaymentAgentMvpService {
     if (chain && !chain.testnet && (!txHash || txHash.startsWith("mock_"))) {
       throw new Error("Mainnet value execution requires a real txHash");
     }
+    const existingReceipt = this.getProposalReceipt(proposal.proposalId);
+    if (existingReceipt && txHash && isCompletedReceiptForTxHash(existingReceipt, txHash)) {
+      return { executionId: this.requireProposalExecutionId(proposal.proposalId), receipt: existingReceipt };
+    }
 
     await this.lael.createPolicy({
       ownerRef: proposal.ownerRef,
@@ -279,7 +283,11 @@ export class PaymentAgentMvpService {
         },
       },
       rawInput: proposal.rawInput,
-      idempotencyKey: `payment-agent:${proposal.proposalId}`,
+      idempotencyKey: paymentExecutionIdempotencyKey(proposal.proposalId, {
+        txHash,
+        executionMode: input.executionMode,
+        appAuthorizationStatus: input.appAuthorizationStatus,
+      }),
       capabilityTokenId: token.tokenId,
       context: {
         proposalId: proposal.proposalId,
@@ -530,6 +538,25 @@ export class PaymentAgentMvpService {
       throw new Error(`Proposal not found: ${proposalId}`);
     }
     return normalizeProposal(parseJson<PaymentProposal>(row.proposal_json, {} as PaymentProposal));
+  }
+
+  private getProposalReceipt(proposalId: string): PaymentExecutionReceipt | undefined {
+    const row = this.lael.db.db
+      .prepare("SELECT receipt_json FROM payment_agent_proposals WHERE proposal_id = ?")
+      .get(proposalId) as { receipt_json?: string | null } | undefined;
+    return row?.receipt_json
+      ? parseJson<PaymentExecutionReceipt | undefined>(row.receipt_json, undefined)
+      : undefined;
+  }
+
+  private requireProposalExecutionId(proposalId: string): string {
+    const row = this.lael.db.db
+      .prepare("SELECT execution_id FROM payment_agent_proposals WHERE proposal_id = ?")
+      .get(proposalId) as { execution_id?: string | null } | undefined;
+    if (!row?.execution_id) {
+      throw new Error(`Execution not found for proposal: ${proposalId}`);
+    }
+    return row.execution_id;
   }
 
   private requireProposalByExecution(executionId: string): PaymentProposal {
@@ -912,6 +939,37 @@ function deriveSettlementStatus(
     return "failed";
   }
   return String(result.settlementStatus ?? result.status ?? "unknown").toLowerCase();
+}
+
+function paymentExecutionIdempotencyKey(
+  proposalId: string,
+  input: {
+    txHash?: string;
+    executionMode?: SettlementExecutionMode;
+    appAuthorizationStatus?: WalletAuthorizationStatus;
+  },
+): string {
+  return [
+    "payment-agent",
+    proposalId,
+    input.txHash?.trim() || "no-txhash",
+    input.executionMode ?? "no-mode",
+    input.appAuthorizationStatus ?? "no-auth",
+  ].join(":");
+}
+
+function isCompletedReceiptForTxHash(
+  receipt: PaymentExecutionReceipt,
+  txHash: string,
+): boolean {
+  const receiptTxHash = receipt.walletTx.txHash?.trim();
+  const settlementStatus = receipt.settlementResult.status.toLowerCase();
+  return (
+    Boolean(receiptTxHash) &&
+    receiptTxHash === txHash &&
+    !receiptTxHash.startsWith("mock_") &&
+    (settlementStatus === "completed" || settlementStatus === "success")
+  );
 }
 
 function parseUnknownRecipient(rawInput: string): PaymentAgentRecipient | undefined {

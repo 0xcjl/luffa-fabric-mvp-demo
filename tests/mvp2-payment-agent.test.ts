@@ -221,6 +221,73 @@ describe("LuffaFabric External MVP v0.2 payment agent loop", () => {
     await app.close();
   });
 
+  it("allows a real txHash retry to replace a stale proposal receipt", async () => {
+    const { app } = await buildServer({ path: ":memory:" });
+    await bindWallet(app);
+
+    const proposed = await app.inject({
+      method: "POST",
+      url: "/v2/payment-agent/proposals",
+      payload: proposalPayload("Transfer 0.01 USDC to Alice on Base Sepolia"),
+    });
+    expect(proposed.statusCode).toBe(201);
+    const proposal = proposed.json() as { proposalId: string };
+
+    const stale = await app.inject({
+      method: "POST",
+      url: `/v2/payment-agent/proposals/${proposal.proposalId}/execute`,
+      payload: {
+        humanConfirmed: true,
+        walletType: "okx-injected",
+        executionMode: "simulated",
+        appAuthorizationStatus: "approved",
+      },
+    });
+    expect(stale.statusCode).toBe(201);
+    const staleReceipt = stale.json() as {
+      executionId: string;
+      receipt: { walletTx: { txHash: string }; settlementResult: { status: string } };
+    };
+    expect(staleReceipt.receipt.walletTx.txHash).toMatch(/^mock_/);
+
+    const realTxHash = "0xretrycompleted001";
+    const retried = await app.inject({
+      method: "POST",
+      url: `/v2/payment-agent/proposals/${proposal.proposalId}/execute`,
+      payload: {
+        humanConfirmed: true,
+        txHash: realTxHash,
+        walletType: "okx-injected",
+        executionMode: "real",
+        appAuthorizationStatus: "approved",
+      },
+    });
+    expect(retried.statusCode).toBe(201);
+    const retryReceipt = retried.json() as {
+      executionId: string;
+      receipt: { walletTx: { txHash: string }; settlementResult: { status: string } };
+    };
+    expect(retryReceipt.executionId).not.toBe(staleReceipt.executionId);
+    expect(retryReceipt.receipt.walletTx.txHash).toBe(realTxHash);
+    expect(retryReceipt.receipt.settlementResult.status).toBe("completed");
+
+    const repeated = await app.inject({
+      method: "POST",
+      url: `/v2/payment-agent/proposals/${proposal.proposalId}/execute`,
+      payload: {
+        humanConfirmed: true,
+        txHash: realTxHash,
+        walletType: "okx-injected",
+        executionMode: "real",
+        appAuthorizationStatus: "approved",
+      },
+    });
+    expect(repeated.statusCode).toBe(201);
+    expect((repeated.json() as { executionId: string }).executionId).toBe(retryReceipt.executionId);
+
+    await app.close();
+  });
+
   it("parses explicit BNB mainnet transfer without falling back to BNB testnet", async () => {
     const { app } = await buildServer({ path: ":memory:" });
 

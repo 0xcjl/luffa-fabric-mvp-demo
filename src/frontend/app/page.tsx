@@ -1039,11 +1039,17 @@ export default function Page() {
         }),
       });
       setReceipt(nextReceipt);
-      setFeedbackStatus("Feedback pending");
+      if (!receiptHasTxHash(nextReceipt, realTxHash)) {
+        setFeedbackStatus("Retry Record available");
+        setLog((items) => [`Existing receipt is stale; retry with txHash ${realTxHash}`, ...items].slice(0, 12));
+        return false;
+      }
+      setFeedbackStatus("Transaction signed and receipt recorded");
       setLog((items) => [`Receipt recorded for ${source} txHash ${realTxHash}`, ...items].slice(0, 12));
       return true;
     } catch (error) {
-      setLog((items) => [`${source} txHash ${realTxHash} confirmed but receipt recording failed: ${messageFromError(error)}. You can click Approve & Record to retry.`, ...items].slice(0, 12));
+      setFeedbackStatus("Retry Record available");
+      setLog((items) => [`${source} txHash ${realTxHash} confirmed but receipt recording failed: ${messageFromError(error)}. You can click Retry Record to retry.`, ...items].slice(0, 12));
       return false;
     }
   }
@@ -1096,7 +1102,12 @@ export default function Page() {
       }),
     });
     setReceipt(nextReceipt);
-    setFeedbackStatus("Feedback pending");
+    if (effectiveTxHash && !receiptHasTxHash(nextReceipt, effectiveTxHash)) {
+      setFeedbackStatus("Retry Record available");
+      setLog((items) => [`Existing receipt is stale; retry with txHash ${effectiveTxHash}`, ...items].slice(0, 12));
+      return;
+    }
+    setFeedbackStatus("Transaction signed and receipt recorded");
   }
 
   function cancelProposal() {
@@ -1365,9 +1376,11 @@ export default function Page() {
       const sdk = new EndlessJsSdk({ network: chain.networkKind === "mainnet" ? Network.MAINNET : Network.TESTNET, colorMode: "light" });
       sdk.open();
       forceEndlessWebWalletModalVisible();
+      setEndlessStatus("Endless Web Wallet window loaded; requesting account");
+      setLog((items) => ["Endless stage: window loaded", ...items].slice(0, 12));
       window.setTimeout(() => {
         if (!endlessWebWalletModalHasLoadError()) return;
-        const message = "Endless Web Wallet window failed to load. Check access to https://wallet.endless.link/wallet/ or use Luffa App QR.";
+        const message = "Endless Web Wallet window failed to load. Check access to https://wallet.endless.link/wallet/ or use Luffa App QR. Retry available.";
         setEndlessStatus(message);
         setLog((items) => [message, ...items].slice(0, 12));
         void createEndlessQrSession(chain, null, "login");
@@ -1666,9 +1679,11 @@ export default function Page() {
       const sdk = new EndlessJsSdk({ network, colorMode: "light" });
       sdk.open();
       forceEndlessWebWalletModalVisible();
+      setEndlessStatus("Endless Web Wallet window loaded; requesting transaction confirmation");
+      setLog((items) => ["Endless stage: window loaded", ...items].slice(0, 12));
       window.setTimeout(() => {
         if (!endlessWebWalletModalHasLoadError()) return;
-        const message = "Endless Web Wallet window failed to load. Check access to https://wallet.endless.link/wallet/ or use Luffa App QR.";
+        const message = "Endless Web Wallet window failed to load. Check access to https://wallet.endless.link/wallet/ or use Luffa App QR. Retry available.";
         setEndlessStatus(message);
         setLog((items) => [message, ...items].slice(0, 12));
         void createEndlessQrSession(selectedChain, currentProposal);
@@ -2374,6 +2389,16 @@ function OnchainPanel(props: {
     (!isEndlessLane && !walletConnected) ||
     Boolean(mainnetSignBlock) ||
     (props.selectedToken.kind === "erc20" && !props.tokenAddress);
+  const currentReceiptRecorded =
+    Boolean(props.receipt) &&
+    props.receipt?.receipt.settlementResult.status !== "denied" &&
+    props.txHash.trim() !== "" &&
+    receiptHasTxHash(props.receipt, props.txHash.trim());
+  const recordButtonLabel = currentReceiptRecorded
+    ? "Recorded"
+    : props.feedbackStatus === "Retry Record available"
+      ? "Retry Record"
+      : "Approve & Record";
   return (
     <section className="grid gap-4 lg:grid-cols-[380px_minmax(0,1fr)]">
       <aside className="panel grid gap-4 p-4">
@@ -2571,8 +2596,8 @@ function OnchainPanel(props: {
                   <button className="rounded-md bg-chain px-4 py-2 text-sm font-black text-white disabled:opacity-40" disabled={proposalActionDisabled} onClick={props.signWalletTransaction}>
                     {isEndlessLane ? "Sign Endless Web Wallet Tx" : "Sign Wallet Tx"}
                   </button>
-                  <button className="rounded-md bg-ink px-4 py-2 text-sm font-black text-white disabled:opacity-40" disabled={props.proposal.permissionDecision.status === "blocked"} onClick={props.executeProposal}>
-                    Approve & Record
+                  <button className="rounded-md bg-ink px-4 py-2 text-sm font-black text-white disabled:opacity-40" disabled={props.proposal.permissionDecision.status === "blocked" || currentReceiptRecorded} onClick={props.executeProposal}>
+                    {recordButtonLabel}
                   </button>
                   <button className="rounded-md border border-grid px-4 py-2 text-sm font-black" onClick={props.cancelProposal}>
                     Cancel
@@ -3117,6 +3142,12 @@ function displayTxHash(txHash: string | undefined, appAuthorizationStatus: strin
   if (txHash && isMockTxHash(txHash)) return "mock settlement hash; not a chain txHash";
   if (txHash) return txHash;
   return appAuthorizationStatus === "approved" ? "approved without txHash" : "not returned";
+}
+
+function receiptHasTxHash(receipt: ExecutionReceipt | null, txHash: string): boolean {
+  const expected = txHash.trim();
+  if (!receipt || !expected || isMockTxHash(expected)) return false;
+  return receipt.receipt.walletTx.txHash?.trim() === expected;
 }
 
 function bytesToBase64(bytes: Uint8Array): string {
