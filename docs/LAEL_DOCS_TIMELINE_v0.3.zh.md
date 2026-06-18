@@ -2,7 +2,7 @@
 
 > 目的：把 LAEL / Luffa Fabric v0.3 的需求、MVP、测试方案、实施计划和测试报告按时间先后整理清楚，便于 GitHub 阅读、审查和后续交接。  
 > 当前分支：`codex/varr-api-route-fixes`  
-> 更新范围：文档索引、报告映射、Base Sepolia / Mainnet Guard / Endless QR 验收入口、2026-06-06 真实环境截图证据、2026-06-12 P0/P1/P2 原生 App 授权和 Task Reward 主线、2026-06-15 Endless Web Wallet 真实 txHash 路径调试状态、2026-06-16 Luffa App bridge 真实 txHash 修复、P0-P2 综合完成总结、全量回归 / 前端稳定性测试，以及钱包交互稳定性修复。
+> 更新范围：文档索引、报告映射、Base Sepolia / Mainnet Guard / Endless QR 验收入口、2026-06-06 真实环境截图证据、2026-06-12 P0/P1/P2 原生 App 授权和 Task Reward 主线、2026-06-15 Endless Web Wallet 真实 txHash 路径调试状态、2026-06-16 Luffa App bridge 真实 txHash 修复、P0-P2 综合完成总结、全量回归 / 前端稳定性测试、钱包交互稳定性修复，以及 2026-06-18 public demo 发布后迭代、测试与修复报告。
 
 ## 1. 推荐阅读顺序
 
@@ -35,9 +35,10 @@
 27. `LAEL_P0_P2_COMPREHENSIVE_TEST_SUMMARY_2026-06-16.zh.md`
 28. `LAEL_FULL_REGRESSION_QA_REPORT_2026-06-16.zh.md`
 29. `LAEL_WALLET_STABILITY_FIX_REPORT_2026-06-16.zh.md`
-30. `LAEL_SESSION_FULL_TEST_AND_VERIFICATION_REPORT_2026-06-15.zh.md`
-31. `LAEL_PROJECT_ITERATION_HISTORY_2026-06-02.zh.md`
-32. `LAEL_COLLABORATION_HANDOFF_2026-06-02.zh.md`
+30. `LAEL_PUBLIC_DEMO_ITERATION_TEST_REPORT_2026-06-18.zh.md`
+31. `LAEL_SESSION_FULL_TEST_AND_VERIFICATION_REPORT_2026-06-15.zh.md`
+32. `LAEL_PROJECT_ITERATION_HISTORY_2026-06-02.zh.md`
+33. `LAEL_COLLABORATION_HANDOFF_2026-06-02.zh.md`
 
 ## 2. 时间线总表
 
@@ -80,6 +81,7 @@
 | 20.15 | P0-P2 综合测试报告与阶段总结 | `LAEL_P0_P2_COMPREHENSIVE_TEST_SUMMARY_2026-06-16.zh.md` | P0/P1/P2 verification / service health / automated tests | 本文件即综合总结 | 汇总 P0 Luffa App QR / WebView 授权、P1 Endless / BNB / Solana / Base 真实小额钱包闭环、P2 Task Reward 业务闭环、服务状态、自动化验证和非阻塞备注；BNB Testnet / Solana Devnet 已按用户指令由主网小额测试替代，仅保留为可选补证 |
 | 20.16 | 全量回归与前端稳定性测试 | `LAEL_FULL_REGRESSION_QA_REPORT_2026-06-16.zh.md` | QA Runner / frontend CSS smoke / service health | 本文件即回归测试报告 | 修复 QA Runner frontend build 覆盖 live dev server 产物导致 CSS 404 / 裸 HTML 的问题；前端 dev 使用 `.next-live`，build 使用 `.next-build`；QA Runner 隔离 mock 测试环境并新增 stylesheet 200 检查；全自动检查 run `qa_mqg0m76y` 通过 |
 | 20.17 | 钱包交互稳定性修复 | `LAEL_WALLET_STABILITY_FIX_REPORT_2026-06-16.zh.md` | `tests/frontend-wallet-menu.test.ts` / TypeScript / frontend build / service checks | 本文件即稳定性修复报告 | 修复 Endless Web Wallet modal 关闭和 transaction timeout；Solana Mainnet 固定 `0.000001 SOL` 默认小额 proposal，签名前执行余额 + fee preflight，RPC endpoint 失败时 fallback 并写入页面日志，不再触发 Next Runtime Error；当前 Cloudflare public callback 1033 / 530 归类为本机 TUN / DNS 到 Cloudflare edge 的连接问题 |
+| 20.18 | Public Demo 发布后迭代、测试与修复 | `LAEL_PUBLIC_DEMO_ITERATION_TEST_REPORT_2026-06-18.zh.md` | `DEMO_TESTING.md` / `WALLET_TEST_GUIDE.md` / Project Docs / wallet receipt tests | 本文件即发布后综合报告 | 汇总 Vercel / Render / public callback 架构、runtime-config fallback、Check / Wake API、主网 gate、EVM / Solana / Endless 钱包优先级、receipt 幂等修复、Retry Record 语义、Solana 阶段化日志、Endless Web Wallet 与 Luffa App 分离入口，以及本机代理 / TUN 导致 `ERR_TUNNEL_CONNECTION_FAILED` 的排查结论 |
 | 21 | 项目迭代过程 | `LAEL_PROJECT_ITERATION_HISTORY_2026-06-02.zh.md` | 本时间线和各阶段测试报告 | 本文件记录迭代过程 | 说明从 v0.1/v0.2 到 v0.3、前端闭环、AGT、多链钱包、QR 验收和协作基线的演进 |
 | 22 | 协作开发交接 | `LAEL_COLLABORATION_HANDOFF_2026-06-02.zh.md` | 本文件内验证命令 | 后续协作测试报告 | 给同事说明 GitHub 分支、运行方式、验证命令、钱包边界和协作规则 |
 | 23 | 下一会话交接入口 | `NEXT_SESSION_HANDOFF.md` | `tests/docs.test.ts` / `tests/project-docs.test.ts` | 后续每次重要迭代都应更新本文件 | 根目录固定入口，提供新会话启动提示词、当前状态、验证命令和维护规则 |
@@ -125,6 +127,7 @@
 | `LAEL_P0_P2_COMPREHENSIVE_TEST_SUMMARY_2026-06-16.zh.md` | P0-P2 comprehensive test summary | 汇总 P0 Luffa App QR/WebView 授权、P1 真实钱包小额闭环、P2 Task Reward 业务闭环、当前服务状态、自动化验证和非阻塞后续项。 |
 | `LAEL_FULL_REGRESSION_QA_REPORT_2026-06-16.zh.md` | Full regression and frontend stability QA | 记录前端 dev/build 产物隔离、CSS smoke、QA Runner 环境隔离、全自动检查通过、服务健康和非阻塞备注。 |
 | `LAEL_WALLET_STABILITY_FIX_REPORT_2026-06-16.zh.md` | Wallet interaction stability follow-up | 记录 Endless Web Wallet 弹窗关闭、timeout、Solana 余额 / fee 预检、RPC fallback、Runtime Error 防护和当前 Cloudflare public callback 1033 / 530 边界。 |
+| `LAEL_PUBLIC_DEMO_ITERATION_TEST_REPORT_2026-06-18.zh.md` | Public demo post-deployment iteration and repair report | 记录公网 demo 发布后的 Vercel / Render / public callback、runtime-config、Check / Wake API、钱包优先级、receipt 幂等、Retry Record、Solana/EVM/Endless 问题链路和代理/TUN 排查结论。 |
 | `LAEL_SESSION_FULL_TEST_AND_VERIFICATION_REPORT_2026-06-15.zh.md` | Full session test and verification report | 汇总本会话 P0/P1/P2 手工测试、自动化验证、GitHub 推送结果、服务检查和未完成项；追加记录 Endless Mainnet Web Wallet 真实 txHash 已完成，Luffa App bridge 真实交易仍未完成。 |
 
 > 注意：第二份前端测试报告不替代第一份 v0.3 测试报告。两者分别对应不同阶段，必须同时保留。

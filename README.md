@@ -166,6 +166,9 @@ The long-term direction is a fabric where agents can earn, pay, claim, settle, a
 
 ## Quick Test Path
 
+Full testing guide: [DEMO_TESTING.md](./DEMO_TESTING.md).
+Post-deployment iteration and test report: [LAEL_PUBLIC_DEMO_ITERATION_TEST_REPORT_2026-06-18.zh.md](./docs/LAEL_PUBLIC_DEMO_ITERATION_TEST_REPORT_2026-06-18.zh.md).
+
 1. Open the frontend: https://luffa-fabric-mvp-demo.vercel.app/
 2. Confirm the page loads with the styled `Execution Loop Console`.
 3. Open `On-chain Value Agent`.
@@ -255,6 +258,7 @@ Public test checklist is in [DEMO_TESTING.md](./DEMO_TESTING.md).
 
 - [Deployment Guide](./DEPLOYMENT.md)
 - [Demo Testing Guide](./DEMO_TESTING.md)
+- [Public Demo Iteration/Test Report](./docs/LAEL_PUBLIC_DEMO_ITERATION_TEST_REPORT_2026-06-18.zh.md)
 - [Project Docs Index](./docs/README.md)
 - [P0-P2 Comprehensive Test Summary](./docs/LAEL_P0_P2_COMPREHENSIVE_TEST_SUMMARY_2026-06-16.zh.md)
 - [Current Handoff](./NEXT_SESSION_HANDOFF.md)

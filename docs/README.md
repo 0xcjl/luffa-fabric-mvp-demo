@@ -132,9 +132,10 @@ As of the June 16 wallet stability check, local API and frontend are online, but
 27. [P0-P2 综合测试报告与阶段总结](./LAEL_P0_P2_COMPREHENSIVE_TEST_SUMMARY_2026-06-16.zh.md)
 28. [全量回归与前端稳定性测试报告](./LAEL_FULL_REGRESSION_QA_REPORT_2026-06-16.zh.md)
 29. [钱包交互稳定性修复报告](./LAEL_WALLET_STABILITY_FIX_REPORT_2026-06-16.zh.md)
-30. [本会话完整测试与验证报告](./LAEL_SESSION_FULL_TEST_AND_VERIFICATION_REPORT_2026-06-15.zh.md)
-31. [项目迭代过程记录](./LAEL_PROJECT_ITERATION_HISTORY_2026-06-02.zh.md)
-32. [协作开发交接说明](./LAEL_COLLABORATION_HANDOFF_2026-06-02.zh.md)
+30. [Public Demo 发布后迭代、测试与修复报告](./LAEL_PUBLIC_DEMO_ITERATION_TEST_REPORT_2026-06-18.zh.md)
+31. [本会话完整测试与验证报告](./LAEL_SESSION_FULL_TEST_AND_VERIFICATION_REPORT_2026-06-15.zh.md)
+32. [项目迭代过程记录](./LAEL_PROJECT_ITERATION_HISTORY_2026-06-02.zh.md)
+33. [协作开发交接说明](./LAEL_COLLABORATION_HANDOFF_2026-06-02.zh.md)
 
 ## Report Mapping
 
@@ -162,6 +163,7 @@ As of the June 16 wallet stability check, local API and frontend are online, but
 | `LAEL_P0_P2_COMPREHENSIVE_TEST_SUMMARY_2026-06-16.zh.md` | P0-P2 comprehensive test summary | Consolidates P0 Luffa App QR/WebView authorization, P1 real small-value wallet loops, P2 Task Reward business flow, service status, automated verification, and non-blocking follow-up notes |
 | `LAEL_FULL_REGRESSION_QA_REPORT_2026-06-16.zh.md` | Full regression and frontend stability QA | Records the Next.js dev/build output isolation fix, CSS smoke check, QA Runner environment isolation, full automated check pass, service health, and remaining non-blocking notes |
 | `LAEL_WALLET_STABILITY_FIX_REPORT_2026-06-16.zh.md` | Wallet interaction stability follow-up | Records Endless Web Wallet modal / timeout fixes, Solana balance and fee preflight, Solana RPC fallback, Runtime Error prevention, and current Cloudflare public callback caveat |
+| `LAEL_PUBLIC_DEMO_ITERATION_TEST_REPORT_2026-06-18.zh.md` | Public demo post-deployment iteration and repair report | Records Vercel / Render / public callback deployment follow-up, runtime-config fallback, Check / Wake API, wallet priority, receipt idempotency, Retry Record semantics, Solana/EVM/Endless findings, and local proxy/TUN caveat |
 | `LAEL_SESSION_FULL_TEST_AND_VERIFICATION_REPORT_2026-06-15.zh.md` | Full session test and verification report | Consolidates this session's P0/P1/P2 manual tests, automated validation, GitHub publishing result, service checks, and unfinished items including the Endless Web Wallet txHash blocker |
 | `LAEL_PROJECT_ITERATION_HISTORY_2026-06-02.zh.md` | Project iteration history | v0.1/v0.2 to v0.3, frontend loop, AGT, multi-chain wallet, collaboration baseline |
 | `LAEL_COLLABORATION_HANDOFF_2026-06-02.zh.md` | Collaboration handoff | GitHub branch, setup, validation, wallet boundaries, and collaboration rules |

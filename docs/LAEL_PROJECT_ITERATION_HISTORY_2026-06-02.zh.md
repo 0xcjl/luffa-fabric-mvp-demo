@@ -411,3 +411,56 @@ P0-P2 关键闭环完成后，继续做手动钱包回归时发现 Solana Mainne
 
 - 新增 `docs/LAEL_WALLET_STABILITY_FIX_REPORT_2026-06-16.zh.md`。
 - 同步更新 `docs/README.md`、`docs/LAEL_DOCS_TIMELINE_v0.3.zh.md`、`NEXT_SESSION_HANDOFF.md` 和前端 Project Docs。
+
+## 2026-06-18 Public Demo 发布后迭代、测试与修复
+
+### 背景
+
+Public demo 部署到 Vercel / Render 后，连续公网和主网小额测试暴露出几类新的问题：
+
+- Chrome 偶发 `ERR_TUNNEL_CONNECTION_FAILED`，同时影响 Vercel、Render API 和 Render Dashboard。
+- runtime-config 有时加载失败，页面进入 public demo fallback。
+- Base / BNB 主网交易链上成功后，LAEL receipt 仍可能显示 `Settlement denied` 或 `approved without txHash`。
+- Solana 主网测试需要把 RPC、签名、提交、确认和 receipt 记录分阶段显示，避免“签了但没有 receipt”的黑盒体验。
+- Endless Web Wallet 与 Luffa App QR / WebView 需要拆成两个可选入口，不能把 App 扫码只当作 Web Wallet 空白时的 fallback。
+
+### 实现
+
+- Public demo 采用 Vercel 前端、Render API、Render public callback 的独立部署结构。
+- 前端增加 runtime-config 状态、来源展示和 public demo fallback。
+- `Check / Wake API` 只检查 / 唤醒 Render API，不提供公网 restart 控制。
+- EVM 钱包优先级固定为 OKX Wallet -> MetaMask -> Rabby -> Phantom -> generic injected。
+- Solana 钱包优先级固定为 Phantom -> OKX Solana -> Solana wallet selector。
+- `Sign Wallet Tx` / `Sign Endless Web Wallet Tx` 成功后自动记录 receipt；`Approve & Record` 改为手动补录或失败重试入口。
+- `/execute` 记录逻辑允许旧无 txHash / denied receipt 在新请求带真实 txHash 时重新生成执行记录，同时保持同一真实 txHash 的幂等返回。
+- `walletAddress` 纳入 execute 输入，避免真实 txHash 验证缺少钱包上下文。
+- Endless Web Wallet 与 Luffa App QR / WebView 拆为两个独立钱包入口。
+
+### 测试
+
+本轮验证重点是文档和 receipt 语义回归：
+
+- `tests/frontend-wallet-menu.test.ts`
+- `tests/mvp2-payment-agent.test.ts`
+- `tests/settlement-adapters.test.ts`
+- `tests/docs.test.ts`
+- `tests/project-docs.test.ts`
+- Root TypeScript check
+- Root build
+- Frontend build
+
+公网 smoke 仍以 Vercel HTML、Render `/v2/runtime-config`、Render `/v2/chains` 为准。若 curl 检查正常但 Chrome 报 `ERR_TUNNEL_CONNECTION_FAILED`，按本机代理 / TUN 抖动处理。
+
+### 边界
+
+- 主网真实完成必须有真实 txHash 或 Solana signature、链上确认和 LAEL receipt。
+- wallet connected、Luffa App login、signed-only authorization、mock txHash、空 txHash 都不能算真实链上完成。
+- Solana RPC `Failed to fetch` 属于签名前 RPC 准备失败，不能推断为链上失败或钱包余额不足。
+- Endless Web Wallet 空白或 `wallet.endless.link` 不可访问时，应切换到独立 `Use Luffa App` QR 路径，但 App login 仍不等于转账完成。
+
+### 文档
+
+- 新增 `docs/LAEL_PUBLIC_DEMO_ITERATION_TEST_REPORT_2026-06-18.zh.md`。
+- `DEMO_TESTING.md` 保持为测试者操作入口。
+- `WALLET_TEST_GUIDE.md` 保持为钱包优先级和真实完成边界入口。
+- 同步更新 `README.md`、`docs/README.md`、`docs/LAEL_DOCS_TIMELINE_v0.3.zh.md`、前端 Project Docs 和文档测试。

@@ -1,15 +1,45 @@
-# Luffa Fabric MVP 2 Wallet Test Guide
+# Luffa Fabric MVP Wallet Test Guide
 
 Completed by **Luffa AI Research Lab**.
 
-## Supported wallets
+This guide describes the current public demo wallet paths. It is not a production wallet integration guide.
 
-- Coinbase Wallet
-- OKX Wallet
-- MetaMask
-- WalletConnect v2 wallets
-- Phantom for Solana
-- Luffa Wallet
+## Supported wallet paths
+
+### EVM chains: Base / BNB
+
+EVM wallet priority:
+
+```text
+OKX Wallet -> MetaMask -> Rabby -> Phantom -> generic injected
+```
+
+Use OKX Wallet first when it is installed and available. Fallback wallets are only used when the higher-priority provider is unavailable or rejected.
+
+### Solana
+
+Solana wallet priority:
+
+```text
+Phantom -> OKX Solana -> Solana wallet selector
+```
+
+Phantom remains the preferred Solana provider. OKX Solana is used only when the extension exposes a Solana-compatible provider that can connect and sign the transaction.
+
+### Endless
+
+Endless paths:
+
+```text
+Use Endless Web Wallet
+Use Luffa App
+```
+
+Endless Web Wallet is the browser SDK signing path. `Use Luffa App` is a separate QR / WebView path for native app login, authorization, and transaction validation; it requires a fresh public Render callback QR and must not be treated as a silent fallback for a blank Web Wallet window.
+
+### Not part of the MVP demo path
+
+WalletConnect / Project ID is not used as an MVP capability display path in this demo.
 
 ## Binding flow
 
@@ -20,41 +50,39 @@ Completed by **Luffa AI Research Lab**.
 5. The frontend calls `POST /v2/wallet/verify`.
 6. Luffa Fabric verifies the signature and records a DID-to-wallet binding.
 
-Luffa Fabric never accepts a mnemonic, seed phrase, or master private key.
+Luffa Fabric never accepts a mnemonic, seed phrase, master private key, or wallet credential.
 
-## Example connect request
+## Transaction test flow
 
-```json
-{
-  "ownerRef": "did:luffa:user_001",
-  "walletType": "metamask",
-  "chainType": "evm",
-  "address": "0x0000000000000000000000000000000000000001"
-}
-```
+1. Select the target chain.
+2. Connect the preferred wallet for that chain.
+3. Generate a small transfer or task reward proposal.
+4. Confirm the proposal requires human confirmation.
+5. For mainnet, accept the explicit risk checkbox only for controlled small-value testing.
+6. Click `Sign Wallet Tx` or `Sign Endless Web Wallet Tx`.
+7. Confirm manually in the wallet.
+8. Require a real txHash before recording real chain completion.
+9. Confirm receipt, settlement evidence, feedback, and learning state.
 
-## Example verify request
+After a real txHash is returned, the frontend records the receipt automatically. `Approve & Record` is only for manual txHash entry or retrying a failed receipt record.
 
-```json
-{
-  "bindingId": "wallet_...",
-  "ownerRef": "did:luffa:user_001",
-  "walletType": "metamask",
-  "chainType": "evm",
-  "address": "0x0000000000000000000000000000000000000001",
-  "nonce": "nonce_...",
-  "signature": "0x..."
-}
-```
+## Completion boundary
 
-## Chain settlement test
+Real chain completion requires:
 
-Use Base Sepolia for the primary EVM test:
+- manual wallet confirmation
+- real txHash
+- recorded receipt
+- settlement / evidence linked to the txHash
 
-1. Bind a Coinbase Wallet or MetaMask address.
-2. Create a policy that allows `luffa.create_task`, asset `USDC`, and chain `BASE_SEPOLIA`.
-3. Invoke `luffa.create_task` with a settlement instruction.
-4. Submit the user-signed tx hash through `/v2/settlement/transfer`.
-5. Confirm `/v2/settlement/tx/:txHash?chainType=evm&chainId=84532` returns a chain status.
+The following are not real chain completion:
 
-For Solana Devnet, bind Phantom, submit a SOL or SPL token signature, and verify through `chainType=solana&chainId=devnet`.
+- empty txHash
+- `mock_` txHash
+- signed-only authorization
+- protocol-only QR approval
+- App authorization without txHash
+
+## Public demo note
+
+Public testers can use the Vercel frontend directly. They do not need local deployment unless they are running localhost-only QA, changing code, or debugging the API / frontend locally.
