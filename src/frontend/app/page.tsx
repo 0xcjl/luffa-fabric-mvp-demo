@@ -875,6 +875,71 @@ export default function Page() {
     return undefined;
   }
 
+  async function confirmSolanaSignature(
+    signature: string,
+    preferred?: {
+      connection: Connection;
+      endpoint: string;
+      latestBlockhash: Awaited<ReturnType<Connection["getLatestBlockhash"]>>;
+    },
+  ): Promise<{ ok: boolean; status: "SUCCESS" | "FAILED" | "PENDING" | "UNKNOWN"; endpoint?: string; error?: string }> {
+    const errors: string[] = [];
+    if (preferred) {
+      try {
+        setLog((items) => [`Solana stage: confirming transaction on ${preferred.endpoint}`, ...items].slice(0, 12));
+        const confirmation = await preferred.connection.confirmTransaction(
+          { signature, ...preferred.latestBlockhash },
+          "confirmed",
+        );
+        if (confirmation.value.err) {
+          return {
+            ok: false,
+            status: "FAILED",
+            endpoint: preferred.endpoint,
+            error: JSON.stringify(confirmation.value.err),
+          };
+        }
+        return { ok: true, status: "SUCCESS", endpoint: preferred.endpoint };
+      } catch (error) {
+        errors.push(`${preferred.endpoint}: ${messageFromError(error)}`);
+      }
+    }
+
+    for (const endpoint of solanaEndpointsForChain(selectedChain)) {
+      try {
+        const connection = preferred?.endpoint === endpoint ? preferred.connection : new Connection(endpoint, "confirmed");
+        const statusResponse = await connection.getSignatureStatuses([signature], {
+          searchTransactionHistory: true,
+        });
+        const status = statusResponse.value[0];
+        if (!status) {
+          errors.push(`${endpoint}: NOT_FOUND`);
+          continue;
+        }
+        if (status.err) {
+          return {
+            ok: false,
+            status: "FAILED",
+            endpoint,
+            error: JSON.stringify(status.err),
+          };
+        }
+        if (status.confirmationStatus === "confirmed" || status.confirmationStatus === "finalized" || status.confirmations !== undefined) {
+          return { ok: true, status: "SUCCESS", endpoint };
+        }
+        errors.push(`${endpoint}: PENDING`);
+      } catch (error) {
+        errors.push(`${endpoint}: ${messageFromError(error)}`);
+      }
+    }
+
+    return {
+      ok: false,
+      status: errors.some((error) => error.includes("NOT_FOUND") || error.includes("PENDING")) ? "PENDING" : "UNKNOWN",
+      error: errors.join(" | "),
+    };
+  }
+
   async function signWalletTransaction() {
     if (!proposal || proposal.permissionDecision.status === "blocked") return;
     if (selectedChain.chainType === "endless") {
@@ -895,9 +960,23 @@ export default function Page() {
       return;
     }
     if (selectedChain.chainType === "solana") {
+      const existingSignature = txHash.trim();
+      if (existingSignature && feedbackStatus === "Retry Confirm available") {
+        const retryConfirmation = await confirmSolanaSignature(existingSignature);
+        if (retryConfirmation.ok) {
+          setFeedbackStatus("Solana transaction confirmed; recording receipt");
+          setLog((items) => [`Solana transaction confirmed: ${existingSignature}`, ...items].slice(0, 12));
+          await recordExecutionReceiptWithTxHash(existingSignature, "Solana");
+        } else {
+          setFeedbackStatus("Retry Confirm available");
+          setLog((items) => [`Solana confirmation pending/failed for ${existingSignature}: ${retryConfirmation.error ?? retryConfirmation.status}`, ...items].slice(0, 12));
+        }
+        return;
+      }
       const connected = await ensureSolanaConnected();
       const solanaSigner = getActiveSolanaSigner(solanaWallet.publicKey?.toBase58());
       if (!connected || !solanaSigner.address) return;
+      setLog((items) => ["Solana stage: wallet connected", ...items].slice(0, 12));
       if (solanaSigner.source === "phantom" && !solanaWallet.signTransaction) {
         setLog((items) => ["Selected Solana wallet does not support explicit signTransaction; use Phantom or another Solana wallet with transaction signing.", ...items].slice(0, 12));
         return;
@@ -910,6 +989,7 @@ export default function Page() {
       try {
         const rpcErrors: string[] = [];
         let rpcContext: { connection: Connection; endpoint: string; latestBlockhash: Awaited<ReturnType<Connection["getLatestBlockhash"]>> } | undefined;
+        setLog((items) => ["Solana stage: selecting RPC endpoint", ...items].slice(0, 12));
         for (const endpoint of solanaEndpointsForChain(selectedChain)) {
           try {
             const connection = new Connection(endpoint, "confirmed");
@@ -947,6 +1027,7 @@ export default function Page() {
         );
         transaction.feePayer = sender;
         transaction.recentBlockhash = latestBlockhash.blockhash;
+        setLog((items) => ["Solana stage: checking balance and fee", ...items].slice(0, 12));
         const [balanceLamports, feeForMessage] = await Promise.all([
           connection.getBalance(sender, "confirmed"),
           connection.getFeeForMessage(transaction.compileMessage(), "confirmed"),
@@ -958,6 +1039,7 @@ export default function Page() {
           setLog((items) => [balanceMessage, ...items].slice(0, 12));
           return;
         }
+        setLog((items) => ["Solana stage: running preflight simulation", ...items].slice(0, 12));
         const simulation = await connection.simulateTransaction(transaction);
         if (simulation.value.err) {
           setLog((items) => [`Solana preflight simulation failed before wallet signing: ${JSON.stringify(simulation.value.err)}`, ...items].slice(0, 12));
@@ -970,22 +1052,29 @@ export default function Page() {
             ...items,
           ].slice(0, 12),
         );
+        setLog((items) => ["Solana stage: requesting wallet signature", ...items].slice(0, 12));
         const signedTransaction =
           solanaSigner.source === "okx"
             ? normalizeSignedSolanaTransaction(await solanaSigner.okxProvider!.signTransaction!(transaction))
             : await solanaWallet.signTransaction!(transaction);
+        setLog((items) => ["Solana stage: wallet signed transaction", ...items].slice(0, 12));
         const signedBySender = signedTransaction.signatures.some((signature) => signature.publicKey.equals(sender) && signature.signature);
         if (!signedBySender) {
           setLog((items) => [`Solana wallet signed with a different account than the connected sender ${sender.toBase58()}; disconnect and reconnect Phantom with the funded account selected.`, ...items].slice(0, 12));
           return;
         }
+        setLog((items) => ["Solana stage: submitting signed transaction", ...items].slice(0, 12));
         const signature = await connection.sendRawTransaction(signedTransaction.serialize(), { skipPreflight: false });
-        const confirmation = await connection.confirmTransaction({ signature, ...latestBlockhash }, "confirmed");
-        if (confirmation.value.err) {
-          setLog((items) => [`Solana transaction failed: ${JSON.stringify(confirmation.value.err)}`, ...items].slice(0, 12));
+        setTxHash(signature);
+        setFeedbackStatus("Solana confirmation pending");
+        setLog((items) => [`Solana transaction submitted: ${signature}`, "Solana confirmation pending", ...items].slice(0, 12));
+        const confirmation = await confirmSolanaSignature(signature, { connection, endpoint, latestBlockhash });
+        if (!confirmation.ok) {
+          setFeedbackStatus("Retry Confirm available");
+          setLog((items) => [`Solana confirmation pending/failed for ${signature}: ${confirmation.error ?? confirmation.status}`, ...items].slice(0, 12));
           return;
         }
-        setTxHash(signature);
+        setFeedbackStatus("Solana transaction confirmed; recording receipt");
         setLog((items) => [`Solana transaction confirmed: ${signature}`, ...items].slice(0, 12));
         await recordExecutionReceiptWithTxHash(signature, "Solana");
       } catch (error) {
@@ -2385,9 +2474,13 @@ function OnchainPanel(props: {
       : props.selectedChain.networkKind === "mainnet" && !props.runtimeConfig.mainnetExecutionEnabled
         ? `Set ${props.runtimeConfig.mainnetEnvVar || MAINNET_EXECUTION_ENV_VAR}=true before wallet signing.`
         : undefined;
+  const solanaRetryConfirmAvailable =
+    props.selectedChain.chainType === "solana" &&
+    props.feedbackStatus === "Retry Confirm available" &&
+    props.txHash.trim() !== "";
   const proposalActionDisabled =
     props.proposal?.permissionDecision.status === "blocked" ||
-    (!isEndlessLane && !walletConnected) ||
+    (!isEndlessLane && !walletConnected && !solanaRetryConfirmAvailable) ||
     Boolean(mainnetSignBlock) ||
     (props.selectedToken.kind === "erc20" && !props.tokenAddress);
   const currentReceiptRecorded =
@@ -2595,7 +2688,7 @@ function OnchainPanel(props: {
                 {mainnetSignBlock ? <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-black text-amber-800">{mainnetSignBlock}</p> : null}
                 <div className="grid gap-2 md:grid-cols-3">
                   <button className="rounded-md bg-chain px-4 py-2 text-sm font-black text-white disabled:opacity-40" disabled={proposalActionDisabled} onClick={props.signWalletTransaction}>
-                    {isEndlessLane ? "Sign Endless Web Wallet Tx" : "Sign Wallet Tx"}
+                    {isEndlessLane ? "Sign Endless Web Wallet Tx" : solanaRetryConfirmAvailable ? "Retry Confirm" : "Sign Wallet Tx"}
                   </button>
                   <button className="rounded-md bg-ink px-4 py-2 text-sm font-black text-white disabled:opacity-40" disabled={props.proposal.permissionDecision.status === "blocked" || currentReceiptRecorded} onClick={props.executeProposal}>
                     {recordButtonLabel}

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { getChainConfig } from "../src/chains/index.js";
 import { createDb } from "../src/db/index.js";
 import { SettlementService } from "../src/settlement/index.js";
@@ -22,6 +22,11 @@ const evmInput: SettlementTransferInput = {
 };
 
 describe("settlement adapters", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
   it("EVM adapter conforms to the settlement interface", async () => {
     const adapter = new EvmSettlementAdapter(requiredChain("BASE_SEPOLIA"));
     await expectAdapterConforms(adapter, evmInput);
@@ -229,6 +234,40 @@ describe("settlement adapters", () => {
     expect(spl.txHash).toMatch(/^mock_/);
     expect((await settlement.verifyTransaction(sol.txHash ?? "", "solana", "devnet")).status).toBe("SUCCESS");
     db.close();
+  });
+
+  it("keeps Solana wallet-provided txHash pending when RPC cannot find the signature", async () => {
+    vi.stubEnv("LAEL_SETTLEMENT_MODE", "real");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ result: { value: [null] } }),
+      })),
+    );
+
+    const adapter = new SolanaSettlementAdapter({
+      ...requiredChain("SOLANA_MAINNET"),
+      rpcUrl: "https://unit.test/solana",
+    });
+    const pending = await adapter.transfer({
+      chainKey: "SOLANA_MAINNET",
+      chainType: "solana",
+      chainId: "mainnet-beta",
+      asset: "SOL",
+      amount: "0.000001",
+      rail: "solana-native",
+      fromAddress: "CDP7oDAHNKPRuEFo5VqhrtSyhQwWiEScj91hyepJAiSC",
+      toAddress: "CDP7oDAHNKPRuEFo5VqhrtSyhQwWiEScj91hyepJAiSC",
+      txHash: "not_found_signature_for_unit_test",
+      executionMode: "real",
+      appAuthorizationStatus: "approved",
+    });
+
+    expect(pending.status).toBe("PENDING");
+    expect(pending.txHash).toBe("not_found_signature_for_unit_test");
+    expect(pending.chainType).toBe("solana");
+    expect(pending.executionMode).toBe("real");
   });
 
   it("records Endless Luffa App authorization outcomes", async () => {

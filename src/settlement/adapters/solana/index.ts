@@ -2,6 +2,7 @@ import type { ChainConfig } from "../../../chains/types.js";
 import { createMockTxHash, jsonRpc } from "../common.js";
 import type {
   SettlementAdapter,
+  SettlementStatus,
   SettlementTransferInput,
   SettlementTransferResult,
   TransactionVerification,
@@ -38,7 +39,7 @@ export class SolanaSettlementAdapter implements SettlementAdapter {
 
     const verification = await this.verifyTransaction(txHash);
     return {
-      status: verification.status === "FAILED" ? "FAILED" : "COMPLETED",
+      status: settlementStatusFromVerification(verification.status),
       txHash,
       chainType: this.chainType,
       chainId: String(this.chain.chainId),
@@ -79,4 +80,12 @@ export class SolanaSettlementAdapter implements SettlementAdapter {
   async estimateFee(): Promise<string> {
     return "5000";
   }
+}
+
+function settlementStatusFromVerification(
+  status: TransactionVerification["status"],
+): SettlementStatus {
+  if (status === "SUCCESS") return "COMPLETED";
+  if (status === "FAILED") return "FAILED";
+  return "PENDING";
 }

@@ -85,6 +85,22 @@ describe("frontend wallet menu", () => {
     expect(page).toContain("Public demo keeps this off");
   });
 
+  it("keeps the Solana signature visible immediately after submission and before confirmation", () => {
+    const signStart = page.indexOf("async function signWalletTransaction()");
+    const solanaBody = page.slice(
+      page.indexOf('if (selectedChain.chainType === "solana")', signStart),
+      page.indexOf('if (!(await ensureSelectedEvmConnected(selectedChain)))', signStart),
+    );
+    expect(solanaBody).toContain("const signature = await connection.sendRawTransaction");
+    expect(solanaBody).toContain("setTxHash(signature)");
+    expect(solanaBody).toContain("Solana transaction submitted:");
+    expect(solanaBody).toContain("Solana confirmation pending");
+    expect(solanaBody).toContain("Retry Confirm available");
+    expect(solanaBody).toContain("confirmSolanaSignature(signature");
+    expect(solanaBody.indexOf("setTxHash(signature)")).toBeLessThan(solanaBody.indexOf("confirmSolanaSignature(signature"));
+    expect(solanaBody.indexOf("recordExecutionReceiptWithTxHash(signature, \"Solana\")")).toBeGreaterThan(solanaBody.indexOf("if (!confirmation.ok)"));
+  });
+
   it("exposes Base mainnet guard and repeatable on-chain manual tests", () => {
     expect(page).toContain("LAEL_ENABLE_MAINNET_EXECUTION");
     expect(page).toContain("Base Mainnet small-value transfer");
@@ -147,7 +163,7 @@ describe("frontend wallet menu", () => {
     expect(page).toContain("QR session:");
     expect(page).toContain("Luffa App Authorization");
     expect(page).toContain("Sign Endless Web Wallet Tx");
-    expect(page).toContain("(!isEndlessLane && !walletConnected)");
+    expect(page).toContain("(!isEndlessLane && !walletConnected && !solanaRetryConfirmAvailable)");
     const signWalletTransactionBody = page.slice(
       page.indexOf("async function signWalletTransaction()"),
       page.indexOf("async function executeProposal()"),

@@ -308,13 +308,37 @@ export async function registerRoutes(app: FastifyInstance, lael: LAEL): Promise<
 
   app.post("/v2/payment-agent/proposals/:proposalId/execute", async (request, reply) => {
     const params = request.params as { proposalId: string };
+    const body = request.body as ExecutePaymentProposalInput;
     try {
       const result = await paymentAgent.executeProposal(
         params.proposalId,
-        request.body as ExecutePaymentProposalInput,
+        body,
+      );
+      request.log.info(
+        {
+          proposalId: params.proposalId,
+          executionId: result.executionId,
+          chainKey: result.receipt.parsedIntent.chainKey,
+          txHash: result.receipt.walletTx.txHash,
+          walletType: result.receipt.walletTx.walletType,
+          executionMode: result.receipt.walletTx.executionMode,
+          appAuthorizationStatus: result.receipt.walletTx.appAuthorizationStatus,
+          settlementStatus: result.receipt.settlementResult.status,
+        },
+        "payment proposal execution recorded",
       );
       return reply.code(201).send(result);
     } catch (error) {
+      request.log.warn(
+        {
+          proposalId: params.proposalId,
+          txHash: body.txHash,
+          executionMode: body.executionMode,
+          appAuthorizationStatus: body.appAuthorizationStatus,
+          error: error instanceof Error ? error.message : "Payment proposal execution failed",
+        },
+        "payment proposal execution rejected",
+      );
       return reply.code(400).send({
         error: error instanceof Error ? error.message : "Payment proposal execution failed",
       });
