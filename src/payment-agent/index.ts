@@ -42,6 +42,7 @@ export interface ExecutePaymentProposalInput {
   txHash?: string;
   signedTransaction?: string;
   walletType?: string;
+  walletAddress?: string;
   appAuthorizationStatus?: WalletAuthorizationStatus;
   executionMode?: SettlementExecutionMode;
 }
@@ -236,6 +237,11 @@ export class PaymentAgentMvpService {
     if (existingReceipt && txHash && isCompletedReceiptForTxHash(existingReceipt, txHash)) {
       return { executionId: this.requireProposalExecutionId(proposal.proposalId), receipt: existingReceipt };
     }
+    const retryAfterExecutionId =
+      existingReceipt && txHash && !isCompletedReceiptForTxHash(existingReceipt, txHash)
+        ? this.requireProposalExecutionId(proposal.proposalId)
+        : undefined;
+    const executionWalletAddress = input.walletAddress ?? proposal.walletAddress;
 
     await this.lael.createPolicy({
       ownerRef: proposal.ownerRef,
@@ -272,7 +278,7 @@ export class PaymentAgentMvpService {
           asset: proposal.parsedIntent.asset,
           rail: railForIntent(proposal.parsedIntent),
           chainKey: proposal.parsedIntent.chainKey,
-          walletAddress: proposal.walletAddress,
+          walletAddress: executionWalletAddress,
           toAddress: proposal.parsedIntent.recipientAddress,
           tokenAddress:
             proposal.parsedIntent.asset === "USDC" ? DUMMY_USDC_BASE_SEPOLIA : undefined,
@@ -287,6 +293,7 @@ export class PaymentAgentMvpService {
         txHash,
         executionMode: input.executionMode,
         appAuthorizationStatus: input.appAuthorizationStatus,
+        retryAfterExecutionId,
       }),
       capabilityTokenId: token.tokenId,
       context: {
@@ -310,7 +317,7 @@ export class PaymentAgentMvpService {
         signature: input.signedTransaction,
         executionMode: input.executionMode,
         appAuthorizationStatus: input.appAuthorizationStatus,
-        walletAddress: proposal.walletAddress,
+        walletAddress: executionWalletAddress,
       },
       settlementResult: {
         status: deriveSettlementStatus(result, input.appAuthorizationStatus),
@@ -947,6 +954,7 @@ function paymentExecutionIdempotencyKey(
     txHash?: string;
     executionMode?: SettlementExecutionMode;
     appAuthorizationStatus?: WalletAuthorizationStatus;
+    retryAfterExecutionId?: string;
   },
 ): string {
   return [
@@ -955,6 +963,7 @@ function paymentExecutionIdempotencyKey(
     input.txHash?.trim() || "no-txhash",
     input.executionMode ?? "no-mode",
     input.appAuthorizationStatus ?? "no-auth",
+    input.retryAfterExecutionId ? `retry-after-${input.retryAfterExecutionId}` : "initial",
   ].join(":");
 }
 

@@ -376,6 +376,15 @@ type LearningResult = {
   };
 };
 
+type WalletBindingView = {
+  bindingId: string;
+  ownerRef: string;
+  walletType: string;
+  chainType: string;
+  address: string;
+  verified: boolean;
+};
+
 type MemoryView = {
   userPreferences: LearningResult["learningUpdate"]["userPreferences"];
   agentScore: number;
@@ -730,20 +739,20 @@ export default function Page() {
     return { source: "phantom" };
   }
 
-  async function bindWallet() {
+  async function bindWallet(): Promise<boolean> {
     if (selectedChain.chainType === "solana") {
       const connected = await ensureSolanaConnected();
       const solanaSigner = getActiveSolanaSigner(solanaWallet.publicKey?.toBase58());
       if (!connected || !solanaSigner.address) {
-        return;
+        return false;
       }
       if (solanaSigner.source === "phantom" && !solanaWallet.signMessage) {
         setLog((items) => ["Selected Solana wallet does not support signMessage for DID binding", ...items].slice(0, 12));
-        return;
+        return false;
       }
       if (solanaSigner.source === "okx" && !solanaSigner.okxProvider?.signMessage) {
         setLog((items) => ["OKX Solana provider does not support signMessage for DID binding; choose Phantom or another Solana wallet.", ...items].slice(0, 12));
-        return;
+        return false;
       }
       const publicKey = solanaSigner.address;
       const pending = await callApi<{ bindingId: string; nonce: string; message: string }>("/v2/wallet/connect", {
@@ -771,18 +780,19 @@ export default function Page() {
           signature,
         }),
       });
-      return;
+      setLog((items) => [`Verified Solana wallet binding for ${shortAddress(publicKey)}`, ...items].slice(0, 12));
+      return true;
     }
 
     if (selectedChain.chainType === "endless") {
       await bindEndlessWallet();
-      return;
+      return true;
     }
 
-    if (!(await ensureSelectedEvmConnected(selectedChain))) return;
+    if (!(await ensureSelectedEvmConnected(selectedChain))) return false;
     if (!address) {
       setLog((items) => ["EVM wallet connected but address is not available yet; click Bind Wallet again after the wallet finishes connecting.", ...items].slice(0, 12));
-      return;
+      return false;
     }
     const pending = await callApi<{ bindingId: string; nonce: string; message: string }>("/v2/wallet/connect", {
       method: "POST",
@@ -806,6 +816,38 @@ export default function Page() {
         signature,
       }),
     });
+    setLog((items) => [`Verified EVM wallet binding for ${shortAddress(address)}`, ...items].slice(0, 12));
+    return true;
+  }
+
+  async function hasVerifiedWalletBinding(chainType: ChainOption["chainType"], bindingAddress: string): Promise<boolean> {
+    if (!bindingAddress) return false;
+    const bindings = await callApi<{ wallets: WalletBindingView[] }>(`/v2/wallets/${encodeURIComponent(ownerRef)}`);
+    const expectedAddress = chainType === "evm" ? bindingAddress.toLowerCase() : bindingAddress;
+    return bindings.wallets.some((wallet) => {
+      const walletAddress = chainType === "evm" ? wallet.address.toLowerCase() : wallet.address;
+      return wallet.chainType === chainType && walletAddress === expectedAddress && wallet.verified;
+    });
+  }
+
+  async function ensureVerifiedWalletBindingForExecution(): Promise<boolean> {
+    if (selectedChain.chainType === "endless") return true;
+    const bindingAddress = selectedChain.chainType === "solana" ? activeSolanaAddress : address;
+    if (!bindingAddress) {
+      setLog((items) => [`${selectedChain.label} wallet must be connected before recording a receipt.`, ...items].slice(0, 12));
+      return false;
+    }
+    try {
+      if (await hasVerifiedWalletBinding(selectedChain.chainType, bindingAddress)) {
+        setLog((items) => [`Verified wallet binding found for ${shortAddress(bindingAddress)}`, ...items].slice(0, 12));
+        return true;
+      }
+      setLog((items) => [`Wallet binding required before LAEL receipt recording for ${shortAddress(bindingAddress)}. Please approve the binding signature, then the transaction can continue.`, ...items].slice(0, 12));
+      return await bindWallet();
+    } catch (error) {
+      setLog((items) => [`Wallet binding check failed: ${messageFromError(error)}`, ...items].slice(0, 12));
+      return false;
+    }
   }
 
   async function createProposal(overrides: Partial<{ input: string; max: string; recipients: Array<{ name: string; address: string }>; allowedChain: string; businessAction: "transfer" | "task_reward" }> = {}) {
@@ -977,6 +1019,9 @@ export default function Page() {
       const solanaSigner = getActiveSolanaSigner(solanaWallet.publicKey?.toBase58());
       if (!connected || !solanaSigner.address) return;
       setLog((items) => ["Solana stage: wallet connected", ...items].slice(0, 12));
+      if (!(await ensureVerifiedWalletBindingForExecution())) {
+        return;
+      }
       if (solanaSigner.source === "phantom" && !solanaWallet.signTransaction) {
         setLog((items) => ["Selected Solana wallet does not support explicit signTransaction; use Phantom or another Solana wallet with transaction signing.", ...items].slice(0, 12));
         return;
@@ -1087,6 +1132,9 @@ export default function Page() {
     if (!(await ensureSelectedEvmConnected(selectedChain))) {
       return;
     }
+    if (!(await ensureVerifiedWalletBindingForExecution())) {
+      return;
+    }
     const asset = proposal.parsedIntent.asset;
     const amount = proposal.parsedIntent.amount;
     const to = proposal.parsedIntent.recipientAddress as `0x${string}`;
@@ -1113,6 +1161,11 @@ export default function Page() {
       setLog((items) => [`${source} did not return a real txHash; receipt recording blocked.`, ...items].slice(0, 12));
       return false;
     }
+    if (selectedChain.chainType !== "endless" && !(await ensureVerifiedWalletBindingForExecution())) {
+      setFeedbackStatus("Retry Record available");
+      setLog((items) => [`${source} txHash ${realTxHash} is preserved, but LAEL receipt recording is waiting for verified wallet binding.`, ...items].slice(0, 12));
+      return false;
+    }
     try {
       setLog((items) => [`Recording receipt for ${source} txHash ${realTxHash}`, ...items].slice(0, 12));
       const nextReceipt = await callApi<ExecutionReceipt>(`/v2/payment-agent/proposals/${proposal.proposalId}/execute`, {
@@ -1121,6 +1174,7 @@ export default function Page() {
           humanConfirmed: true,
           txHash: realTxHash,
           walletType: walletTypeForChain(selectedChain, endlessAccountSource),
+          walletAddress,
           executionMode: executionModeForChain(selectedChain, realTxHash, endlessAccountSource),
           appAuthorizationStatus: "approved",
         }),
@@ -1328,24 +1382,32 @@ export default function Page() {
       setLog((items) => ["Enter a real Luffa / Endless recipient address or use Alice's fixed Endless reward address.", ...items].slice(0, 12));
       return undefined;
     }
-    const session = await callApi<EndlessQrSessionView>("/v2/endless/qr-sessions", {
-      method: "POST",
-      body: JSON.stringify({
-        ownerRef,
-        chainKey: chain.chainKey,
-        businessAction: isLogin ? "login" : currentProposal?.businessAction ?? businessActionForInput(intent),
-        intent,
-        amount,
-        asset: "EDS",
-        recipientAddress: recipient,
-      }),
-    });
-    setEndlessQrSession(session);
-    setEndlessQrModalOpen(true);
-    setEndlessAuthStatus("unavailable");
-    setEndlessAccountSource("luffa_app_qr");
-    setEndlessStatus(`Endless QR ${session.status}; ${session.callbackLocalOnly ? "local callback only" : "public callback ready"}`);
-    return session;
+    try {
+      const session = await callApi<EndlessQrSessionView>("/v2/endless/qr-sessions", {
+        method: "POST",
+        body: JSON.stringify({
+          ownerRef,
+          chainKey: chain.chainKey,
+          businessAction: isLogin ? "login" : currentProposal?.businessAction ?? businessActionForInput(intent),
+          intent,
+          amount,
+          asset: "EDS",
+          recipientAddress: recipient,
+        }),
+      });
+      setEndlessQrSession(session);
+      setEndlessQrModalOpen(true);
+      setEndlessAuthStatus("unavailable");
+      setEndlessAccountSource("luffa_app_qr");
+      setEndlessStatus(`Endless QR ${session.status}; ${session.callbackLocalOnly ? "local callback only" : "public callback ready"}`);
+      return session;
+    } catch (error) {
+      const message = `Luffa App QR creation failed: ${messageFromError(error)}`;
+      setEndlessAuthStatus("unavailable");
+      setEndlessStatus(message);
+      setLog((items) => [message, ...items].slice(0, 12));
+      return undefined;
+    }
   }
 
   async function refreshEndlessQrSession() {
@@ -1647,6 +1709,26 @@ export default function Page() {
     }
     if (nextChain.chainType === "endless" && !endlessAccount) {
       void bindEndlessWallet(nextChain);
+    }
+  }
+
+  function connectEndlessWebWalletNetwork(chainKey: ChainOption["chainKey"]) {
+    const nextChain = CHAIN_OPTIONS.find((chain) => chain.chainKey === chainKey) ?? CHAIN_OPTIONS[0];
+    selectChain(chainKey);
+    setActiveTab("onchain");
+    setWalletMenuOpen(false);
+    if (nextChain.chainType === "endless") {
+      void bindEndlessWebWallet(nextChain);
+    }
+  }
+
+  function connectLuffaAppNetwork(chainKey: ChainOption["chainKey"]) {
+    const nextChain = CHAIN_OPTIONS.find((chain) => chain.chainKey === chainKey) ?? CHAIN_OPTIONS[0];
+    selectChain(chainKey);
+    setActiveTab("onchain");
+    setWalletMenuOpen(false);
+    if (nextChain.chainType === "endless") {
+      void createEndlessQrSession(nextChain, null, "login");
     }
   }
 
@@ -2000,9 +2082,9 @@ export default function Page() {
               {walletSummary}
             </button>
             {walletMenuOpen ? (
-              <WalletMenu
-                chainOptions={CHAIN_OPTIONS}
-                selectedChainKey={selectedChainKey}
+            <WalletMenu
+              chainOptions={CHAIN_OPTIONS}
+              selectedChainKey={selectedChainKey}
                 address={address}
                 chainId={chainId}
                 isEvmConnected={isConnected}
@@ -2011,12 +2093,14 @@ export default function Page() {
                 solanaConnected={Boolean(activeSolanaAddress)}
                 endlessAccount={endlessAccount}
                 endlessAccountSource={endlessAccountSource}
-                endlessStatus={endlessStatus}
-                endlessQrSession={endlessQrSession}
-                onSelectNetwork={connectWalletNetwork}
-                onAddBnb={addBnbTestnetToWallet}
-                onDisconnectEvm={() => disconnect()}
-              />
+              endlessStatus={endlessStatus}
+              endlessQrSession={endlessQrSession}
+              onSelectNetwork={connectWalletNetwork}
+              onUseEndlessWebWallet={connectEndlessWebWalletNetwork}
+              onUseLuffaApp={connectLuffaAppNetwork}
+              onAddBnb={addBnbTestnetToWallet}
+              onDisconnectEvm={() => disconnect()}
+            />
             ) : null}
           </div>
         </header>
@@ -3358,6 +3442,8 @@ function WalletMenu({
   endlessStatus,
   endlessQrSession,
   onSelectNetwork,
+  onUseEndlessWebWallet,
+  onUseLuffaApp,
   onAddBnb,
   onDisconnectEvm,
 }: {
@@ -3374,6 +3460,8 @@ function WalletMenu({
   endlessStatus: string;
   endlessQrSession: EndlessQrSessionView | null;
   onSelectNetwork: (chainKey: ChainOption["chainKey"]) => void;
+  onUseEndlessWebWallet: (chainKey: ChainOption["chainKey"]) => void;
+  onUseLuffaApp: (chainKey: ChainOption["chainKey"]) => void;
   onAddBnb: () => void;
   onDisconnectEvm: () => void;
 }) {
@@ -3440,9 +3528,20 @@ function WalletMenu({
                       {!chain.executionEnabled ? <div className="mt-1 text-xs font-black text-purple-700">Mainnet real execution is gated; explicit env and user confirmation required.</div> : null}
                     </div>
                     <div className="grid gap-2">
-                      <button className="rounded-md bg-ink px-3 py-2 text-xs font-black text-white disabled:opacity-40" disabled={chain.chainType === "evm" && evmConnectPending} onClick={() => onSelectNetwork(chain.chainKey)}>
-                        {chain.chainType === "evm" ? (evmConnectPending ? "Connecting" : "Use OKX / MetaMask / Rabby / Phantom") : chain.chainType === "solana" ? "Use Phantom / OKX" : "Use Endless Web Wallet"}
-                      </button>
+                      {chain.chainType === "endless" ? (
+                        <>
+                          <button className="rounded-md bg-ink px-3 py-2 text-xs font-black text-white" onClick={() => onUseEndlessWebWallet(chain.chainKey)}>
+                            Use Endless Web Wallet
+                          </button>
+                          <button className="rounded-md border border-grid bg-white px-3 py-2 text-xs font-black text-ink" onClick={() => onUseLuffaApp(chain.chainKey)}>
+                            Use Luffa App
+                          </button>
+                        </>
+                      ) : (
+                        <button className="rounded-md bg-ink px-3 py-2 text-xs font-black text-white disabled:opacity-40" disabled={chain.chainType === "evm" && evmConnectPending} onClick={() => onSelectNetwork(chain.chainKey)}>
+                          {chain.chainType === "evm" ? (evmConnectPending ? "Connecting" : "Use OKX / MetaMask / Rabby / Phantom") : "Use Phantom / OKX"}
+                        </button>
+                      )}
                       {chain.chainKey === "BNB_TESTNET" ? (
                         <button className="rounded-md border border-grid bg-white px-3 py-2 text-xs font-black text-ink" onClick={onAddBnb}>
                           Add BNB Testnet to OKX

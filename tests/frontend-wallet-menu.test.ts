@@ -20,6 +20,9 @@ describe("frontend wallet menu", () => {
     expect(page).toContain("Disconnecting current EVM connector");
     expect(page).toContain("Requesting EVM wallet connection with");
     expect(page).toContain("Using existing OKX Wallet EVM connector");
+    expect(page).toContain("ensureVerifiedWalletBindingForExecution");
+    expect(page).toContain("Verified wallet binding found for");
+    expect(page).toContain("Wallet binding required before LAEL receipt recording");
     expect(page).not.toContain("WalletConnect");
     expect(page).not.toContain("Project ID");
     expect(envExample).not.toContain("WalletConnect");
@@ -60,6 +63,9 @@ describe("frontend wallet menu", () => {
     expect(page).toContain("OKX Solana provider does not support signTransaction");
     expect(providers).toContain("autoConnect={false}");
     expect(page).toContain("Connecting Endless Web Wallet");
+    expect(page).toContain("Use Luffa App");
+    expect(page).toContain("connectLuffaAppNetwork");
+    expect(page).toContain('void createEndlessQrSession(nextChain, null, "login")');
     expect(page).toContain("Using Endless Web Wallet SDK in this browser");
     expect(page).toContain("Prepare a 0.000001 SOL transfer proposal to Alice on Solana mainnet");
     expect(page).toContain("reward ${amount} SOL to Alice on Solana ${chain.networkKind}");
@@ -200,6 +206,7 @@ describe("frontend wallet menu", () => {
     expect(page).toContain("Transaction signed and receipt recorded");
     expect(page).toContain("Retry Record available");
     expect(page).toContain("Existing receipt is stale; retry with txHash");
+    expect(page).toContain("is preserved, but LAEL receipt recording is waiting for verified wallet binding");
     expect(page).toContain("Retry Record");
     expect(page).toContain("Recorded");
     expect(page).toContain("receiptHasTxHash");
