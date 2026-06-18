@@ -92,7 +92,7 @@ export const projectDocsSections: ProjectDocSection[] = [
     items: [
       "Runtime Agent：演示链下 Agent summary/report，生成 off-chain receipt、trace digest、learning signal 和 AGT decision record。",
       "On-chain Value Agent：演示 Base Sepolia ETH/USDC transfer、wallet confirmation、txHash receipt、Base Mainnet safety gate、Endless Web Wallet、Endless QR/WebView authorization、Task Reward 和 simulated swap proposal。",
-      "Wallet Menu：在右上角弹窗集中展示 Base、BNB、Solana、Endless Web Wallet / Luffa App 的主网/测试网连接方式和支持边界。",
+      "Wallet Menu：在右上角弹窗集中展示 Base、BNB、Solana、Endless Web Wallet / Luffa App 的主网/测试网连接方式和支持边界；EVM 链优先 OKX Wallet，Solana 链优先 Phantom。",
       "Evidence / Learning：集中展示 settlement proof、evidence sensitivity、disclosure suggestion、learning item 和 policy suggestion。",
       "Automated Tests：通过本地 QA Runner 启动白名单自动化检查，不接受任意命令。",
       "Manual Tests：按顺序提供人工验收步骤，并显示 pass、waiting、fail、blocked、simulated 等状态。",
@@ -147,7 +147,7 @@ export const projectDocsSections: ProjectDocSection[] = [
       "已匹配真实 txHash 的 receipt 会显示为已记录；重复点击记录按钮不应创建新的完成证据，只有失败重试或手动补录 txHash 才需要再次记录。",
       "BNB Mainnet 已在用户明确确认后完成 0.000001 BNB 小额自转；2026-06-16 用户确认主网测试通过即可，BNB Testnet 仅保留为可选补证。",
       "Solana Mainnet 已在用户明确确认后完成 0.000001 SOL 小额自转；2026-06-16 用户确认主网测试通过即可，Solana Devnet 仅保留为可选补证。",
-      "Base / BNB 属于 EVM lane，可以通过 MetaMask / OKX Wallet 支持；Endless 不按 EVM add-network 处理。",
+      "Base / BNB 属于 EVM lane，连接优先级是 OKX Wallet -> MetaMask -> Rabby -> Phantom -> generic injected；Solana 连接优先级是 Phantom -> OKX Wallet -> Solana wallet selector；Endless 不按 EVM add-network 处理。",
       "Endless 浏览器真实链上执行优先通过官方 Endless Web Wallet SDK；Luffa App QR / WebView 保留为原生授权协议路径。",
       "OKX Endless 原生支持需要 OKX 公开 Endless provider 或支持 Endless Wallet Standard。",
       "Luffa App 独立二维码授权已升级为 luffa-endless-auth:v1；Mock App Callback 只会生成 protocol_mock receipt，不能算真实 App 联调完成。",
